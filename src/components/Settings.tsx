@@ -41,7 +41,7 @@ export function Settings({
       await fn();
       setMessage(success);
     } catch (e) {
-      setMessage(String(e));
+      setMessage(e instanceof Error ? e.message : String(e));
     }
   }
   return (

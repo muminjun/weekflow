@@ -22,7 +22,7 @@
 ## 미검증 / 정식 릴리스 gate
 
 - 다른 실제 기기에서의 Google 로그인. 현재 Mac Chrome에서 실제 Google 로그인·클라우드 저장은 확인했습니다.
-- 데스크톱 Push 클릭 이동과 호환 모바일에서 실제 Push 수신·클릭 이동. Mac Chrome 수신은 확인했으며, 서버 배포나 구독 없는 요청 거절을 수신 증명으로 사용하지 않았습니다.
+- 데스크톱 OS 배너 표시·클릭 이동과 호환 모바일에서 실제 Push 수신·클릭 이동. Mac Chrome Service Worker 수신·표시 등록은 확인했으나 사용자가 OS 배너를 보지 못했다고 응답했습니다. 브라우저 수신 목록과 실제 OS 배너를 구분합니다.
 - 실 iOS/Safari·VoiceOver 수동 검수, 실제 기기 PWA 설치와 Push 거절/해제 경로.
 
 이 gate가 남아 있으므로 프로젝트를 WEEKFLOW 1.0 완료로 표시하지 않습니다.
@@ -38,15 +38,18 @@
 - GitHub Pages 배포와 Quality gates 실행 성공. 실URL의 앱·manifest·Service Worker·공휴일 캐시·약관·개인정보처리방침 HTTP 200을 확인했습니다. 최초 배포의 환경 허용 브랜치를 master에서 main으로 수정하고 재실행했습니다.
 - `live-desktop.png`, `live-mobile.png`는 실배포 URL의 명시적 메모리 체험 화면입니다. PC의 7열/사이드패널과 모바일 하루 표시/하단 내비게이션을 시각 검수했고 수평 넘침은 없습니다. 실제 모바일 하드웨어 검수로 간주하지 않습니다.
 - Mac Chrome에서 사용자가 알림 권한을 허용한 후 실제 구독을 등록하고 테스트 Push를 발송했습니다. Service Worker의 `getNotifications()`에서 ‘WEEKFLOW 테스트 알림’과 본문이 표시됨을 확인했습니다. 구독 정보·토큰은 출력하지 않았습니다.
+- 사용자가 배너가 보이지 않는다고 응답해 macOS 알림 설정을 열었습니다. 브라우저 수신 성공을 OS 배너·클릭 성공으로 보고하지 않습니다.
+- 사용자가 제보한 일반 Edge 오류 문구를 조사했습니다. 실배포 재요청에서 HTTP 429 / RATE_LIMIT을 확인했습니다. Push 응답 본문을 안전하게 해석해 1분 간격 제한, 구독 누락, 인증 만료, 전송 실패를 한국어로 안내하도록 수정했습니다. 수정 전 4개 실패 → 수정 후 4개 통과하는 회귀 검사를 실행했습니다.
 - Cron SQL 실행 성공 이외에 `net._http_response`를 확인해 기본 5초 제한의 시간 초과를 발견했습니다. `supabase/cron.sql`과 초기 구성 스크립트를 120초 제한으로 수정하고, 같은 Vault 인증 경로의 실호출 HTTP 200 / `processed: 0`을 확인했습니다.
 - 이어서 실제 구독을 가진 Google 사용자의 임시 일정과 알림 설정으로 예약 알림 경로를 검증했습니다. 작업 상태 `sent`, 앱 내부 알림 1개, 장치 발송 기록 `sent`/201 1개를 확인하고, Chrome의 알림 목록에서도 ‘일정이 곧 시작돼요’ 수신을 확인했습니다. 임시 일정·작업·앱 내부 알림은 삭제했고 알림 설정은 버전 검사 후 원래 값으로 복원했습니다. 실제 시간 기반 Cron의 다음 주기 실행도 운영 응답에서 확인할 수 있습니다.
+- 2026-11-16 08:45 KST의 실제 5분 Cron 주기에서도 `net._http_response` HTTP 200을 확인했습니다. 최신 커밋 5701b8f의 Quality gates와 Pages 배포 모두 성공했습니다.
 
 ## 최종 로컬 자동 검사
 
 - npm ci, typecheck, lint: 통과.
-- Vitest: 35개 통과 (PostgreSQL 통합 17개 포함).
+- Vitest: 39개 통과 (PostgreSQL 통합 17개 포함).
 - Playwright: 7개 통과, 1개 제외. 모바일 pointer drag 검사는 터치 대체 시간 선택 경로를 별도 검사하므로 제외했습니다.
 - Deno Edge 타입 검사: 3개 함수 통과.
-- production build: 통과. 초기 JS 청크 566.90kB(압축 167.29kB)로 Vite의 500kB 경고가 남습니다. 플래너는 별도 lazy 청크입니다.
+- production build: 통과. 초기 JS 청크 567.68kB(압축 167.60kB)로 Vite의 500kB 경고가 남습니다. 플래너는 별도 lazy 청크입니다.
 - npm audit: 전체 의존성 취약점 0건.
 - source secret scan: 비밀키 패턴 없음.

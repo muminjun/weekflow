@@ -1,4 +1,34 @@
 import { supabase } from "./supabase";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+
+async function pushFailure(error: unknown): Promise<never> {
+  let status = 0;
+  let code = "";
+  if (error instanceof FunctionsHttpError) {
+    const response = error.context as Response;
+    status = response.status;
+    try {
+      const body = await response.clone().json();
+      code = typeof body.error === "string" ? body.error : "";
+    } catch {
+      // Gateways may return non-JSON responses; never expose their raw body.
+    }
+  }
+  const messages: Record<string, string> = {
+    RATE_LIMIT:
+      "테스트 알림은 1분에 한 번 보낼 수 있습니다. 잠시 후 다시 시도해 주세요.",
+    NO_SUBSCRIPTION: "먼저 ‘브라우저 알림 켜기’로 이 기기를 등록해 주세요.",
+    UNAUTHENTICATED: "로그인이 만료되었습니다. 다시 로그인해 주세요.",
+    PUSH_DELIVERY_FAILED:
+      "알림을 전송하지 못했습니다. 기기 구독과 네트워크를 확인한 뒤 다시 시도해 주세요.",
+  };
+  if (status === 401) code = "UNAUTHENTICATED";
+  if (status === 429) code = "RATE_LIMIT";
+  throw Error(
+    messages[code] ??
+      "알림 요청을 처리하지 못했습니다. 연결을 확인하고 잠시 후 다시 시도해 주세요.",
+  );
+}
 function publicKey(value: string) {
   const b = atob(value.replaceAll("-", "+").replaceAll("_", "/"));
   return Uint8Array.from(b, (c) => c.charCodeAt(0));
@@ -24,7 +54,7 @@ export async function pushAction(action: "subscribe" | "unsubscribe" | "test") {
     const { error } = await supabase.functions.invoke("push-subscription", {
       body: { action: "test" },
     });
-    if (error) throw error;
+    if (error) await pushFailure(error);
     return;
   }
   if (action === "unsubscribe") {
@@ -32,7 +62,7 @@ export async function pushAction(action: "subscribe" | "unsubscribe" | "test") {
     const { error } = await supabase.functions.invoke("push-subscription", {
       body: { action, endpoint: subscription?.endpoint },
     });
-    if (error) throw error;
+    if (error) await pushFailure(error);
     await subscription?.unsubscribe();
     return;
   }
@@ -54,6 +84,6 @@ export async function pushAction(action: "subscribe" | "unsubscribe" | "test") {
   });
   if (error) {
     await subscription.unsubscribe();
-    throw error;
+    await pushFailure(error);
   }
 }
