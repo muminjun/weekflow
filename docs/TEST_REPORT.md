@@ -16,6 +16,7 @@
 - 연한 보조 텍스트 대비와 반복 select label → 대비 강화, 접근 가능한 이름·폼 label 수정.
 - 주말 사용자 규칙 무시 / 주 경계의 자정 넘는 통계 → 우선순위와 구간 자르기 테스트 추가.
 - SW 정적 캐시와 Vary: Origin 차이로 오프라인 module fetch 실패 → 공개 정적 리소스에 한해 ignoreVary 매칭, 실 브라우저 오프라인 재실행 통과.
+- 업데이트 설치가 브라우저 HTTP 캐시의 이전 HTML을 새 Cache Storage에 저장하는 오류 → 사전 캐시 요청에 cache: reload 적용. 이전 HTML이 한 시간 캐시된 상태에서 새 SW 활성화 후 오프라인 재실행하는 PC/모바일 E2E가 수정 전 2개 실패, 수정 후 2개 통과했습니다.
 - 큐·캐시 저장 경쟁 → 같은 IndexedDB transaction, 명령 직렬화.
 - 겹침 승인 후 블록이 서로 가림 → 겹침 레인 배치와 pointer E2E 회귀 검사.
 
@@ -48,7 +49,7 @@
 
 - npm ci, typecheck, lint: 통과.
 - Vitest: 40개 통과 (PostgreSQL 통합 17개 포함).
-- Playwright: 7개 통과, 1개 제외. 모바일 pointer drag 검사는 터치 대체 시간 선택 경로를 별도 검사하므로 제외했습니다.
+- Playwright: 9개 통과, 1개 제외. 모바일 pointer drag 검사는 터치 대체 시간 선택 경로를 별도 검사하므로 제외했습니다. PWA의 이전 버전 캐시 → 업데이트 → 오프라인 재실행 검사 2개를 포함합니다.
 - Deno Edge 타입 검사: 3개 함수 통과.
 - production build: 통과. 초기 JS 청크 약 568kB(압축 약 168kB)로 Vite의 500kB 경고가 남습니다. 플래너는 별도 lazy 청크입니다.
 - npm audit: 전체 의존성 취약점 0건.
