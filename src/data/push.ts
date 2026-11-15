@@ -15,6 +15,8 @@ async function pushFailure(error: unknown): Promise<never> {
     }
   }
   const messages: Record<string, string> = {
+    DEVICE_LIMIT:
+      "등록할 수 있는 기기는 최대 10개입니다. 사용하지 않는 기기의 구독을 해제해 주세요.",
     RATE_LIMIT:
       "테스트 알림은 1분에 한 번 보낼 수 있습니다. 잠시 후 다시 시도해 주세요.",
     NO_SUBSCRIPTION: "먼저 ‘브라우저 알림 켜기’로 이 기기를 등록해 주세요.",
@@ -23,7 +25,7 @@ async function pushFailure(error: unknown): Promise<never> {
       "알림을 전송하지 못했습니다. 기기 구독과 네트워크를 확인한 뒤 다시 시도해 주세요.",
   };
   if (status === 401) code = "UNAUTHENTICATED";
-  if (status === 429) code = "RATE_LIMIT";
+  if (status === 429 && !messages[code]) code = "RATE_LIMIT";
   throw Error(
     messages[code] ??
       "알림 요청을 처리하지 못했습니다. 연결을 확인하고 잠시 후 다시 시도해 주세요.",
