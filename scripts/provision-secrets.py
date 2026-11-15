@@ -12,8 +12,6 @@ p=Path('.env.local');lines=[s for s in p.read_text().splitlines() if not s.start
 for line in lines:
  name,_,value=line.partition('=')
  if name.startswith('VITE_'):subprocess.run(['gh','variable','set',name,'--repo','muminjun/weekflow','--body',value],check=True,capture_output=True)
-query="""create extension if not exists pg_cron; create extension if not exists pg_net with schema extensions;
-select vault.create_secret('%s','weekflow_cron_secret');
-select cron.schedule('weekflow-notifications','*/5 * * * *',$job$select net.http_post(url:='https://%s.supabase.co/functions/v1/dispatch-push',headers:=jsonb_build_object('Content-Type','application/json','x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name='weekflow_cron_secret' order by created_at desc limit 1)),body:='{}'::jsonb);$job$);"""%(cron_secret,REF)
+query="select vault.create_secret('%s','weekflow_cron_secret');\n"%cron_secret + Path('supabase/cron.sql').read_text()
 request(f'projects/{REF}/database/query',{'query':query})
 print('VAPID server secrets, public GitHub variables and 5-minute Vault-authenticated Cron provisioned.')

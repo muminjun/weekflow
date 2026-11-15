@@ -50,7 +50,7 @@ VAPID·Cron은 이미 생성·등록했습니다. `scripts/provision-secrets.py`
 supabase functions deploy --project-ref emhmmorcpamlenqxwmaw --use-api
 ```
 
-push-subscription / delete-account는 JWT gateway와 함수 내부 getUser 검증을 모두 사용합니다. dispatch-push만 사용자 JWT 대신 Vault secret을 검사하므로 verify_jwt=false이며, 인증 없는 요청은 403입니다. Cron은 5분 간격입니다. 원격 호출·Cron 설정에 실제 secret을 문서에 복사하지 마세요.
+push-subscription / delete-account는 JWT gateway와 함수 내부 getUser 검증을 모두 사용합니다. dispatch-push만 사용자 JWT 대신 Vault secret을 검사하므로 verify_jwt=false이며, 인증 없는 요청은 403입니다. Cron은 5분 간격, HTTP 제한은 120초입니다. `python3 scripts/configure-cron.py`로 키를 교체하지 않고 `supabase/cron.sql`을 적용할 수 있습니다. 기본 5초 제한은 Edge cold start보다 짧을 수 있습니다. `cron.job_run_details` 성공은 요청 접수만 의미하므로 `net._http_response`의 상태도 확인하세요. 원격 호출·Cron 설정에 실제 secret을 문서에 복사하지 마세요.
 
 ## 공휴일
 
@@ -66,4 +66,4 @@ Settings → Pages → Source: GitHub Actions. 공개 저장소에 main을 push�
 
 기존 공공데이터포털 승인 계정의 KASI 키를 GitHub Actions Secret에 직접 등록했습니다. 키를 재발급하거나 소스에 저장하지 않았습니다. 2025·2026·2027년 각 12개월을 실제 API에서 조회해 전체 검증 캐시를 생성했습니다. Supabase Auth의 Google enabled=true, email/anonymous=false와 Google Cloud의 프로덕션 단계를 직접 확인했습니다.
 
-GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로고침 유지를 확인했습니다. 배포 환경의 브랜치 정책은 main입니다. DB 마이그레이션 001~013이 적용되어 있습니다. 실제 기기 Push 수신과 모바일 기기 검증은 테스트 보고서의 남은 항목을 따릅니다.
+GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로고침 유지, Mac Chrome Push 수신을 확인했습니다. 배포 환경의 브랜치 정책은 main입니다. DB 마이그레이션 001~013이 적용되어 있습니다. 모바일 기기와 알림 클릭 검증은 테스트 보고서의 남은 항목을 따릅니다.

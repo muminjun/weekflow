@@ -2,7 +2,7 @@
 
 종이형 주간 Todo·타임블로킹 플래너. 아이보리 격자, 월–일 시간표, 우측 GOALS / DEADLINE / TO-DO, 7칸 수행표와 하단 회고를 제공합니다. 참고 브랜드의 로고·이미지·서체를 배포하지 않습니다.
 
-**현재 상태: 배포 완료, 정식 릴리스 검증 중.** [WEEKFLOW 열기](https://muminjun.github.io/weekflow/). 실제 Google 로그인, Todo의 Supabase 저장과 새로고침 후 유지, 공식 공휴일 API 연결을 확인했습니다. 실제 기기 Push 수신과 모바일 기기 검수가 남아 있어 1.0 완료로 표시하지 않습니다. 명시적인 체험은 메모리에서만 실행됩니다.
+**현재 상태: 배포 완료, 정식 릴리스 검증 중.** [WEEKFLOW 열기](https://muminjun.github.io/weekflow/). 실제 Google 로그인, Todo의 Supabase 저장과 새로고침 후 유지, 공식 공휴일 API 연결, Mac Chrome Push 수신을 확인했습니다. 실제 모바일 기기 검수가 남아 있어 1.0 완료로 표시하지 않습니다. 명시적인 체험은 메모리에서만 실행됩니다.
 
 ## 실행
 
