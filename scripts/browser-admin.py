@@ -1,6 +1,6 @@
 """Run owner-authorized setup in the task's Chrome tabs; never print OAuth secrets."""
 import json,re,subprocess,sys
-SCOPES={'cloud':'console.cloud.google.com/','portal_app':'data.go.kr/iim/','portal':'data.go.kr/','app':'muminjun.github.io/weekflow/'}
+SCOPES={'cloud':'console.cloud.google.com/','portal_app':'data.go.kr/iim/','portal':'data.go.kr/','google_login':'accounts.google.com/','app':'muminjun.github.io/weekflow/'}
 def execute(scope,javascript):
  fragment=SCOPES[scope]
  def quote(s):return s.replace('\\','\\\\').replace('"','\\"').replace('\n','\\n').replace('\r','')

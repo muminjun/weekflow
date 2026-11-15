@@ -65,3 +65,5 @@ Settings → Pages → Source: GitHub Actions. 공개 저장소에 main을 push�
 ## 2026-11-16 연결 확인
 
 기존 공공데이터포털 승인 계정의 KASI 키를 GitHub Actions Secret에 직접 등록했습니다. 키를 재발급하거나 소스에 저장하지 않았습니다. 2025·2026·2027년 각 12개월을 실제 API에서 조회해 전체 검증 캐시를 생성했습니다. Supabase Auth의 Google enabled=true, email/anonymous=false와 Google Cloud의 프로덕션 단계를 직접 확인했습니다.
+
+GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로고침 유지를 확인했습니다. 배포 환경의 브랜치 정책은 main입니다. DB 마이그레이션 001~013이 적용되어 있습니다. 실제 기기 Push 수신과 모바일 기기 검증은 테스트 보고서의 남은 항목을 따릅니다.

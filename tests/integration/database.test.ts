@@ -23,6 +23,7 @@ beforeAll(async () => {
     "010_notification_preferences.sql",
     "011_server_recurrence.sql",
     "012_recurrence_template_validation.sql",
+    "013_profile_reinitialization.sql",
   ])
     await db.exec(
       readFileSync(`supabase/migrations/${f}`, "utf8").replace(
@@ -36,6 +37,19 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => {
   await db?.close();
+});
+it("reinitializes missing categories without duplicating existing availability", async () => {
+  const c = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  await db.exec(
+    `insert into auth.users values ('${c}');set request.jwt.claim.sub='${c}';select ensure_profile();delete from categories where user_id='${c}';`,
+  );
+  await db.exec("select ensure_profile();select ensure_profile();");
+  const rows = await db.query<{ categories: number; windows: number }>(
+    "select (select count(*)::int from categories where user_id=$1) categories, (select count(*)::int from availability_rules where user_id=$1) windows",
+    [c],
+  );
+  expect(rows.rows[0]).toEqual({ categories: 6, windows: 5 });
+  await db.exec(`delete from auth.users where id='${c}';`);
 });
 it("creates separate default profiles and 6 owned categories", async () => {
   const r = await db.query<{ n: number }>(
