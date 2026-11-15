@@ -1,0 +1,63 @@
+{
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.3.1",
+    "@supabase/supabase-js": "^2.119.0",
+    "@tanstack/react-query": "^5.107.1",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "idb": "^8.0.4",
+    "lucide-react": "^1.73.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@electric-sql/pglite": "^0.5.16",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.10",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "eslint": "^10.15.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.8",
+    "fake-indexeddb": "^6.2.8",
+    "fast-xml-parser": "^5.12.1",
+    "jsdom": "^29.1.1",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "name": "weekflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "tsc -b",
+    "lint": "eslint .",
+    "test": "vitest",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "holidays": "tsx scripts/fetch-holidays.ts",
+    "test:db": "python3 scripts/test-live.py",
+    "test:live:browser": "python3 scripts/test-live.py --browser",
+    "check:secrets": "node scripts/secret-scan.mjs",
+    "check:edge": "sh scripts/check-edge.sh",
+    "format": "prettier --write src tests scripts/*.{ts,mjs} *.ts *.json *.js"
+  },
+  "overrides": {
+    "minimatch": "^11.0.2"
+  }
+}
