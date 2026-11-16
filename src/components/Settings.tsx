@@ -1,3 +1,4 @@
+import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { Download, Upload, LogOut, Bell, Trash2 } from "lucide-react";
 import { Modal } from "./Modal";
@@ -41,7 +42,7 @@ export function Settings({
       await fn();
       setMessage(success);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage(userMessage(e));
     }
   }
   return (
@@ -127,7 +128,7 @@ export function Settings({
                 }
                 void run(() => commit(changes), "기본 설정을 저장했습니다.");
               } catch (e) {
-                setMessage(String(e));
+                setMessage(userMessage(e));
               }
             }}
           >
@@ -615,7 +616,7 @@ export function Settings({
                     })
                     .catch((e) => {
                       setBackup(null);
-                      setMessage(String(e));
+                      setMessage(userMessage(e));
                     });
                 }}
               />

@@ -14,7 +14,7 @@ test("login, paper preview, inline Todo, multi-block editor, settings, screensho
     page.getByRole("heading", { name: "이번 주, 나의 흐름" }),
   ).toBeVisible();
   if (info.project.name === "mobile")
-    await page.getByRole("button", { name: /TO-DO/ }).click();
+    await page.getByRole("button", { name: /^할 일.*열기/ }).click();
   const quick = page.getByRole("textbox", { name: "새 할 일" });
   await quick.fill("통합 테스트 작업");
   await quick.press("Enter");
@@ -36,8 +36,8 @@ test("login, paper preview, inline Todo, multi-block editor, settings, screensho
   ).toHaveCount(0);
   if (info.project.name === "mobile")
     await page
-      .getByRole("button", { name: "할 일 패널 닫기", exact: true })
-      .first()
+      .getByRole("dialog", { name: "이번 주 계획" })
+      .getByRole("button", { name: "닫기", exact: true })
       .click();
   await page.getByRole("button", { name: "설정 열기" }).click();
   await page.getByRole("button", { name: "백업", exact: true }).click();
@@ -90,27 +90,33 @@ test("15-minute pointer move, resize, overlap approval and Undo", async ({
   await block.evaluate((el) => el.scrollIntoView({ block: "center" }));
   const source = (await block.boundingBox())!;
   const target = (await page.locator(".day-column").nth(2).boundingBox())!;
-  await page.mouse.move(source.x + 20, source.y + 20);
+  const scale = Number(
+    await page.locator(".timeline-grid").getAttribute("data-scale"),
+  );
+  const grabY = Math.min(20, source.height / 2);
+  await page.mouse.move(source.x + 20, source.y + grabY);
   await page.mouse.down();
-  await page.mouse.move(target.x + 35, target.y + 9 * 64 + 20, { steps: 15 });
+  await page.mouse.move(target.x + 35, source.y + grabY + scale / 4, {
+    steps: 15,
+  });
   await page.mouse.up();
-  await expect(block.locator(".block-time")).toHaveText("13:00");
+  await expect(block.locator(".block-time")).toHaveText("10:15");
   const moved = (await block.boundingBox())!;
   await page.mouse.move(moved.x + moved.width / 2, moved.y + moved.height - 3);
   await page.mouse.down();
   await page.mouse.move(
     moved.x + moved.width / 2,
-    moved.y + moved.height + 13,
+    moved.y + moved.height - 3 + scale / 4,
     { steps: 8 },
   );
   await page.mouse.up();
   await expect(block.locator(".block-content")).toHaveAttribute(
     "aria-description",
-    /13:00–14:15/,
+    /10:15–11:30/,
   );
   await page.getByRole("button", { name: "실행 취소", exact: true }).click();
   await expect(block.locator(".block-content")).toHaveAttribute(
     "aria-description",
-    /13:00–14:00/,
+    /10:15–11:15/,
   );
 });

@@ -1,3 +1,5 @@
+import { userMessage } from "../ui/errors";
+import { AppearanceMenu } from "../ui/ThemeControls";
 import { ArrowUpRight, MoveRight } from "lucide-react";
 import { login, supabase } from "../data/supabase";
 import { useState } from "react";
@@ -21,6 +23,9 @@ export function Login({ onPreview }: { onPreview: () => void }) {
   });
   return (
     <main className="login-page">
+      <div className="login-appearance">
+        <AppearanceMenu />
+      </div>
       <header className="login-brand">
         WEEKFLOW<span> A LITTLE STRUCTURE. MORE FLOW.</span>
       </header>
@@ -37,7 +42,7 @@ export function Login({ onPreview }: { onPreview: () => void }) {
         </p>
         <button
           className="primary google-button"
-          onClick={() => void login().catch((e) => setError(String(e)))}
+          onClick={() => void login().catch((e) => setError(userMessage(e)))}
           disabled={!supabase || auth.data !== true}
         >
           <svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true">

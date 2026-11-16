@@ -1,3 +1,4 @@
+import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { Modal } from "./Modal";
@@ -259,7 +260,7 @@ export function TaskEditor({
       await commit(changes);
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(userMessage(e));
     } finally {
       setSaving(false);
     }
@@ -591,7 +592,7 @@ export function BlockEditor({
           );
       }
     } catch (e) {
-      setError(String(e));
+      setError(userMessage(e));
     } finally {
       setSaving(false);
     }
@@ -792,7 +793,7 @@ export function AvailabilityEditor({
                 },
               ]).then(onClose);
           } catch (e) {
-            setError(String(e));
+            setError(userMessage(e));
           }
         }}
       >

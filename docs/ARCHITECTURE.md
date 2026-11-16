@@ -29,3 +29,9 @@ Service Worker는 앱 셸·정적 리소스·검증된 공휴일만 캐시합니
 Cron은 Vault의 랜덤 secret header로 dispatch-push를 호출합니다. 서버는 예약 작업을 atomic claim하고 원본·설정·방해금지를 확인합니다. 내부 알림은 job별 한 번만 생성합니다. Push 기기별 결과를 저장하고 404/410 구독을 제거합니다. 네트워크 모호성 때문에 OS 알림의 exactly-once 도착은 보장하지 않습니다.
 
 Cron은 앱이 닫혀 있어도 service_role 전용 materialize_for_user로 향후 7일 회차를 준비합니다. 서버도 Pages의 검증된 공식 공휴일 캐시를 사용하고 미확인 기간의 휴일 제외 패턴은 보류합니다. 한 사용자의 생성 실패는 다른 사용자의 알림을 막지 않도록 격리합니다.
+
+## 2026-11-16 UI presentation layer
+
+The planner now uses a finite `100dvh` workspace, not a document-height paper planner. `Timeline` measures the grid's actual available height with ResizeObserver and supplies one effective pixels/hour value to every position and pointer calculation. Fit mode starts at 09–18 and supports range navigation, outside-event jumps and a readable agenda. Full 00–24 and the saved profile range are explicit detail modes with calendar-local scrolling. No fit setting is written to the profile. Midnight slices keep the original event duration and drag anchor; outside navigation uses a slice in the visible week.
+
+`src/ui` owns native controls, device-local appearance and user-facing error copy; `src/domain/view.ts` contains presentation geometry and category text contrast. The four palettes and rem type tokens live in CSS. Document-root theme attributes cover Radix portals without remounting the planner. `public/appearance.js` applies validated appearance before React paint and is included in the SW precache and cache version hash. Authentication, dataset, RPC/version checking, queue and IndexedDB behavior remain unchanged.

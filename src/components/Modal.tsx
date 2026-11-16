@@ -1,3 +1,4 @@
+import { AppearanceMenu } from "../ui/ThemeControls";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { useRef, type ReactNode } from "react";
@@ -31,6 +32,7 @@ export function Modal({
         >
           <div className="modal-heading">
             <Dialog.Title>{title}</Dialog.Title>
+            <AppearanceMenu />
             <Dialog.Close className="icon-button" aria-label="닫기">
               <X size={20} />
             </Dialog.Close>
@@ -38,7 +40,7 @@ export function Modal({
           <Dialog.Description className="sr-only">
             {title} 설정과 편집
           </Dialog.Description>
-          {children}
+          <div className="modal-body">{children}</div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

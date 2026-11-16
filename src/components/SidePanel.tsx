@@ -1,3 +1,4 @@
+import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { Plus, ArrowUpRight, GripVertical } from "lucide-react";
 import { differenceInCalendarDays, parseISO } from "date-fns";
@@ -6,6 +7,7 @@ import { addDays, today } from "../domain/planner";
 import { uuid } from "../data/demo";
 import { Tracker } from "./Tracker";
 import { Modal } from "./Modal";
+import { SegmentedControl, TextField } from "../ui/Controls";
 import type { Commit } from "./Editors";
 export function SidePanel({
   data,
@@ -18,6 +20,7 @@ export function SidePanel({
   commit: Commit;
   onTask: (t?: Task, w?: WeekTask) => void;
 }) {
+  const [tab, setTab] = useState<"todo" | "goals" | "deadlines">("todo");
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
   const [copyGoals, setCopyGoals] = useState(false);
   const [quickTitle, setQuickTitle] = useState("");
@@ -71,202 +74,218 @@ export function SidePanel({
         },
       },
     ]).catch((e) => {
-      setError(String(e));
+      setError(userMessage(e));
       setQuickTitle((current) => current || title);
     });
   }
   return (
     <aside className="side-panel">
-      <section className="paper-section goals-section">
-        <div className="section-heading">
-          <h2>GOALS</h2>
-          <span className="hairline" />
-          <button
-            className="small-add"
-            aria-label="목표 추가"
-            onClick={() => setGoalEdit("new")}
-          >
-            <Plus size={15} />
-          </button>
-        </div>
-        <p className="section-caption">이번 주에 닿고 싶은 곳</p>
-        {goals.map((g) => {
-          const ids = data.goal_week_tasks
-            .filter((l) => l.goal_id === g.id)
-            .map((l) => l.week_task_id);
-          const linked = wt.filter((w) => ids.includes(w.id));
-          const done = linked.filter((w) => w.state === "done").length;
-          return (
+      <SegmentedControl
+        label="이번 주 작업"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "todo", label: `할 일 ${wt.length}` },
+          { value: "goals", label: `목표 ${goals.length}` },
+          { value: "deadlines", label: `마감 ${deadlines.length}` },
+        ]}
+      />
+      <div className="panel-content">
+        <section
+          hidden={tab !== "goals"}
+          className="paper-section goals-section"
+        >
+          <div className="section-heading">
+            <h2>이번 주 목표</h2>
+            <span className="hairline" />
             <button
-              className="goal-row"
-              key={g.id}
-              onClick={() => setGoalEdit(g.id)}
+              className="small-add"
+              aria-label="목표 추가"
+              onClick={() => setGoalEdit("new")}
             >
-              <div>
-                <span className="goal-square">
-                  {linked.length && done === linked.length ? "✓" : ""}
-                </span>
-                <span>{g.title}</span>
-              </div>
-              <div className="goal-progress">
-                <span
-                  style={{
-                    width: linked.length
-                      ? `${(done / linked.length) * 100}%`
-                      : "0",
-                  }}
-                />
-              </div>
-              <small>
-                {linked.length
-                  ? `${done} / ${linked.length} 완료`
-                  : "진행 데이터 없음"}
-              </small>
+              <Plus size={15} />
             </button>
-          );
-        })}
-        {!goals.length && (
-          <button className="empty-line" onClick={() => setGoalEdit("new")}>
-            이번 주 목표를 적어보세요 <Plus size={13} />
-          </button>
-        )}
-        {data.goals.some((g) => g.week_start === addDays(week, -7)) && (
-          <button className="text-button" onClick={() => setCopyGoals(true)}>
-            지난주 목표 선택해서 가져오기
-          </button>
-        )}
-      </section>
-      <section className="paper-section deadline-section">
-        <div className="section-heading">
-          <h2>DEADLINE</h2>
-          <span className="hairline" />
-        </div>
-        <div className="deadline-table-head">
-          <span>DATE</span>
-          <span>TASK</span>
-        </div>
-        {deadlines.map((t) => {
-          const n = differenceInCalendarDays(
-            parseISO(t.due_on!),
-            parseISO(today(data.profile.timezone)),
-          );
-          return (
-            <button
-              className="deadline-row"
-              key={t.id}
-              onClick={() =>
-                onTask(
-                  t,
-                  data.week_tasks.find(
-                    (w) => w.task_id === t.id && w.week_start === week,
-                  ),
-                )
-              }
-            >
-              <span className={n <= 0 ? "due-urgent" : ""}>
-                {t.due_on!.slice(5).replace("-", ".")}
+          </div>
+          <p className="section-caption">이번 주에 닿고 싶은 곳</p>
+          {goals.map((g) => {
+            const ids = data.goal_week_tasks
+              .filter((l) => l.goal_id === g.id)
+              .map((l) => l.week_task_id);
+            const linked = wt.filter((w) => ids.includes(w.id));
+            const done = linked.filter((w) => w.state === "done").length;
+            return (
+              <button
+                className="goal-row"
+                key={g.id}
+                onClick={() => setGoalEdit(g.id)}
+              >
+                <div>
+                  <span className="goal-square">
+                    {linked.length && done === linked.length ? "✓" : ""}
+                  </span>
+                  <span>{g.title}</span>
+                </div>
+                <div className="goal-progress">
+                  <span
+                    style={{
+                      width: linked.length
+                        ? `${(done / linked.length) * 100}%`
+                        : "0",
+                    }}
+                  />
+                </div>
                 <small>
-                  {n < 0 ? "OVERDUE" : n === 0 ? "D-DAY" : `D-${n}`}
+                  {linked.length
+                    ? `${done} / ${linked.length} 완료`
+                    : "진행 데이터 없음"}
                 </small>
-              </span>
-              <span className={t.state === "done" ? "struck" : ""}>
-                {t.title}
-                <ArrowUpRight size={12} />
-              </span>
-            </button>
-          );
-        })}
-        {Array.from({ length: Math.max(0, 3 - deadlines.length) }, (_, i) => (
-          <div className="deadline-row empty" key={i}>
-            <span />
-            <span />
-          </div>
-        ))}
-      </section>
-      <section className="paper-section todo-section">
-        <div className="section-heading">
-          <h2>TO-DO</h2>
-          <span className="section-count">
-            {wt.filter((w) => w.state === "done").length} / {wt.length}
-          </span>
-          <span className="hairline" />
-          <button
-            className="small-add"
-            aria-label="할 일 상세 추가"
-            onClick={() => onTask()}
-          >
-            <Plus size={15} />
-          </button>
-        </div>
-        <div className="todo-table-head">
-          <div>
-            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-              <span key={i}>{d}</span>
-            ))}
-          </div>
-          <span>TASK</span>
-        </div>
-        {wt.map((w) => {
-          const t = data.tasks.find((t) => t.id === w.task_id);
-          if (!t) return null;
-          const category = data.categories.find((c) => c.id === t.category_id);
-          return (
-            <div
-              className={`todo-row ${w.state === "done" ? "todo-done" : ""}`}
-              key={w.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("text/weekflow-task", w.id);
-                e.dataTransfer.effectAllowed = "copy";
-              }}
-            >
-              <Tracker data={data} weekTask={w} commit={commit} />
-              <button className="todo-title" onClick={() => onTask(t, w)}>
-                <span
-                  className="category-dot"
-                  style={{ backgroundColor: category?.color ?? "#DFE0DC" }}
-                />
-                <span>{t.title}</span>
-                <GripVertical className="drag-icon" size={12} />
               </button>
-            </div>
-          );
-        })}
-        <form className="inline-task" onSubmit={addTask}>
-          <Plus size={15} />
-          <input
-            id="quick-task"
-            value={quickTitle}
-            onChange={(e) => setQuickTitle(e.target.value)}
-            name="title"
-            aria-label="새 할 일"
-            placeholder="할 일 추가 후 Enter"
-            maxLength={240}
-            autoComplete="off"
-          />
-        </form>
-        {error && <p className="error">{error}</p>}
-        {Array.from({ length: Math.max(3, 13 - wt.length) }, (_, i) => (
-          <div className="todo-row empty" key={i}>
-            <div className="tracker">
-              {Array.from({ length: 7 }, (_, n) => (
-                <span className="tracker-cell" key={n} />
-              ))}
-            </div>
-            <div className="empty-task-line" />
+            );
+          })}
+          {!goals.length && (
+            <button className="empty-line" onClick={() => setGoalEdit("new")}>
+              이번 주 목표를 적어보세요 <Plus size={13} />
+            </button>
+          )}
+          {data.goals.some((g) => g.week_start === addDays(week, -7)) && (
+            <button className="text-button" onClick={() => setCopyGoals(true)}>
+              지난주 목표 선택해서 가져오기
+            </button>
+          )}
+        </section>
+        <section
+          hidden={tab !== "deadlines"}
+          className="paper-section deadline-section"
+        >
+          <div className="section-heading">
+            <h2>다가오는 마감</h2>
+            <span className="hairline" />
           </div>
-        ))}
-        <div className="tracker-legend">
-          <span>● 계획</span>
-          <span>◐ 일부 완료</span>
-          <span>× 완료</span>
-          <span>─ 완료 이후</span>
-        </div>
-        <p className="panel-note">
-          할 일을 시간표로 끌어 놓으세요.
-          <br />한 할 일을 여러 번 나누어 배치할 수 있어요.
-        </p>
-      </section>
+          <div className="deadline-table-head">
+            <span>DATE</span>
+            <span>TASK</span>
+          </div>
+          {deadlines.map((t) => {
+            const n = differenceInCalendarDays(
+              parseISO(t.due_on!),
+              parseISO(today(data.profile.timezone)),
+            );
+            return (
+              <button
+                className="deadline-row"
+                key={t.id}
+                onClick={() =>
+                  onTask(
+                    t,
+                    data.week_tasks.find(
+                      (w) => w.task_id === t.id && w.week_start === week,
+                    ),
+                  )
+                }
+              >
+                <span className={n <= 0 ? "due-urgent" : ""}>
+                  {t.due_on!.slice(5).replace("-", ".")}
+                  <small>
+                    {n < 0 ? "OVERDUE" : n === 0 ? "D-DAY" : `D-${n}`}
+                  </small>
+                </span>
+                <span className={t.state === "done" ? "struck" : ""}>
+                  {t.title}
+                  <ArrowUpRight size={12} />
+                </span>
+              </button>
+            );
+          })}
+          {!deadlines.length && (
+            <p className="empty-state">
+              이번 주 마감이 없어요.
+              <br />할 일에서 마감일을 설정할 수 있어요.
+            </p>
+          )}
+        </section>
+        <section hidden={tab !== "todo"} className="paper-section todo-section">
+          <div className="section-heading">
+            <h2>이번 주 할 일</h2>
+            <span className="section-count">
+              {wt.filter((w) => w.state === "done").length} / {wt.length}
+            </span>
+            <span className="hairline" />
+            <button
+              className="small-add"
+              aria-label="할 일 상세 추가"
+              onClick={() => onTask()}
+            >
+              <Plus size={15} />
+            </button>
+          </div>
+          <form className="inline-task" onSubmit={addTask}>
+            <Plus size={18} />
+            <TextField
+              id="quick-task"
+              value={quickTitle}
+              onChange={(e) => setQuickTitle(e.target.value)}
+              name="title"
+              aria-label="새 할 일"
+              placeholder="할 일 추가 후 Enter"
+              maxLength={240}
+              autoComplete="off"
+            />
+            <button type="submit" aria-label="할 일 추가">
+              <ArrowUpRight size={18} />
+            </button>
+          </form>
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <p className="panel-note">
+            할 일을 끌어 배치하거나 눌러 시간을 선택하세요.
+          </p>
+          <div className="todo-list">
+            {wt.map((w) => {
+              const t = data.tasks.find((t) => t.id === w.task_id);
+              if (!t) return null;
+              const category = data.categories.find(
+                (c) => c.id === t.category_id,
+              );
+              return (
+                <div
+                  className={`todo-row ${w.state === "done" ? "todo-done" : ""}`}
+                  key={w.id}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("text/weekflow-task", w.id);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
+                >
+                  <button className="todo-title" onClick={() => onTask(t, w)}>
+                    <span
+                      className="category-dot"
+                      style={{ backgroundColor: category?.color ?? "#DFE0DC" }}
+                    />
+                    <span>{t.title}</span>
+                    <GripVertical className="drag-icon" size={12} />
+                  </button>
+                  <Tracker data={data} weekTask={w} commit={commit} />
+                </div>
+              );
+            })}
+            {!wt.length && (
+              <div className="empty-state">
+                <b>이번 주를 가볍게 시작해요</b>
+                <p>첫 할 일을 추가하고 빈 시간에 배치해 보세요.</p>
+              </div>
+            )}
+          </div>
+          <div className="tracker-legend">
+            <span>● 계획</span>
+            <span>◐ 일부 완료</span>
+            <span>× 완료</span>
+            <span>─ 완료 이후</span>
+          </div>
+        </section>
+      </div>
       {copyGoals && (
         <Modal title="지난주 목표 가져오기" onClose={() => setCopyGoals(false)}>
           <form

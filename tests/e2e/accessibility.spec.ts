@@ -19,7 +19,7 @@ test("paper planner and keyboard editor have no serious accessibility violations
       })),
   ).toEqual([]);
   if (info.project.name === "mobile")
-    await page.getByRole("button", { name: /TO-DO/ }).click();
+    await page.getByRole("button", { name: /^할 일.*열기/ }).click();
   await page.getByRole("button", { name: "할 일 상세 추가" }).click();
   const modal = await new AxeBuilder({ page })
     .include('[role="dialog"]')
@@ -36,5 +36,17 @@ test("paper planner and keyboard editor have no serious accessibility violations
       })),
   ).toEqual([]);
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "새로운 할 일" })).toHaveCount(
+    0,
+  );
+  if (info.project.name === "mobile") {
+    await expect(
+      page.getByRole("dialog", { name: "이번 주 계획" }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(
+      page.getByRole("button", { name: /^할 일.*열기/ }),
+    ).toBeFocused();
+  }
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });

@@ -1,3 +1,4 @@
+import { userMessage } from "./ui/errors";
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -29,7 +30,7 @@ class ErrorBoundary extends React.Component<
     return this.state.error ? (
       <main className="fatal">
         <h1>화면을 불러오지 못했습니다.</h1>
-        <p role="alert">{this.state.error}</p>
+        <p role="alert">{userMessage(this.state.error)}</p>
         <button onClick={() => location.reload()}>다시 열기</button>
       </main>
     ) : (
@@ -88,7 +89,10 @@ function App() {
   if (!store.data || (!preview && store.data.profile.id !== user))
     return (
       <main className="loading">
-        WEEKFLOW <span>{store.error || "이번 주를 펼치고 있어요…"}</span>
+        WEEKFLOW{" "}
+        <span>
+          {store.error ? userMessage(store.error) : "이번 주를 펼치고 있어요…"}
+        </span>
         <button onClick={() => void store.flush()}>다시 시도</button>
         <button onClick={() => void logout()}>로그아웃</button>
       </main>

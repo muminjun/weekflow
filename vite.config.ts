@@ -17,6 +17,7 @@ export default defineConfig({
           "./",
           "index.html",
           "manifest.webmanifest",
+          "appearance.js",
           "privacy.html",
           "terms.html",
           "policy.css",
@@ -28,6 +29,7 @@ export default defineConfig({
         const hash = createHash("sha256")
           .update(JSON.stringify(files))
           .update(readFileSync("public/sw.js", "utf8"))
+          .update(readFileSync("public/appearance.js", "utf8"))
           .digest("hex")
           .slice(0, 12);
         const source = readFileSync("public/sw.js", "utf8")

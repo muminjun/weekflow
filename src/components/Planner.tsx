@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { userMessage } from "../ui/errors";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell,
   ChevronLeft,
@@ -8,13 +9,15 @@ import {
   PanelRightOpen,
   Plus,
   ArrowRight,
+  Palette,
+  NotebookPen,
   Undo2,
   RefreshCw,
   CalendarDays,
   X,
   Check,
 } from "lucide-react";
-import { getISOWeek, parseISO, format } from "date-fns";
+import { parseISO, format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import type { Block, Change, Dataset, Task, WeekTask } from "../domain/types";
 import { addDays, today, weekOf } from "../domain/planner";
@@ -28,11 +31,21 @@ import { useHolidays } from "../data/holidays";
 import type { PlannerStore } from "../data/usePlanner";
 import { rpc } from "../data/supabase";
 import { uuid } from "../data/demo";
+import { ThemeControls } from "../ui/ThemeControls";
+import { IconButton, Button } from "../ui/Controls";
+const mobileQuery = () => window.matchMedia("(max-width: 767px)");
+const subscribeMobile = (cb: () => void) => {
+  const q = mobileQuery();
+  q.addEventListener("change", cb);
+  return () => q.removeEventListener("change", cb);
+};
 type Editor =
   | { type: "task"; task?: Task; wt?: WeekTask }
   | { type: "block"; block?: Block; date: string; minute: number; wt?: string }
   | { type: "availability"; date: string }
   | { type: "settings" }
+  | { type: "review" }
+  | { type: "appearance" }
   | { type: "carry" }
   | { type: "notifications" }
   | null;
@@ -60,7 +73,10 @@ export function Planner({
     ),
   );
   const [editor, setEditor] = useState<Editor>(null);
-  const [openedAt] = useState(() => Date.now());
+  const mobile = useSyncExternalStore(
+    subscribeMobile,
+    () => mobileQuery().matches,
+  );
   const [sheet, setSheet] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [carryDismissed, setCarryDismissed] = useState<string[]>([]);
@@ -72,8 +88,7 @@ export function Planner({
       .filter((h) => h.isHoliday)
       .map((h) => [h.date, h.names]) ?? [],
   );
-  const year = Number(week.slice(0, 4)),
-    month = Number(week.slice(5, 7));
+
   const prevOpen = data.week_tasks.filter(
     (w) =>
       w.week_start === addDays(week, -7) &&
@@ -116,10 +131,7 @@ export function Planner({
         )
       ) {
         e.preventDefault();
-        setSheet(true);
-        requestAnimationFrame(() =>
-          document.getElementById("quick-task")?.focus(),
-        );
+        setEditor({ type: "task" });
       }
     }
     window.addEventListener("keydown", key);
@@ -160,7 +172,7 @@ export function Planner({
         setRecurrenceStatus(
           String(e).includes("HOLIDAY_DATA_UNKNOWN")
             ? "공휴일 미확인 · 휴일 제외 반복 생성 보류"
-            : String(e),
+            : userMessage(e),
         );
       })
       .finally(() => {
@@ -225,7 +237,7 @@ export function Planner({
         <a className="wordmark" href="#/planner">
           WEEKFLOW<span className="logo-slash">/</span>
         </a>
-        <span className="brand-tagline">작은 계획이 만드는, 나의 흐름.</span>
+        <span className="brand-tagline">한 주를 내 흐름대로</span>
         <div className="header-spacer" />
         <span className={`sync-status ${preview ? "preview-status" : ""}`}>
           <span />
@@ -238,6 +250,20 @@ export function Planner({
         >
           <RefreshCw size={16} />
         </button>
+        <IconButton
+          label="외관 / 테마"
+          onClick={() => setEditor({ type: "appearance" })}
+        >
+          <Palette size={20} />
+        </IconButton>
+        <Button
+          className="primary header-add"
+          aria-label="빠른 추가"
+          onClick={() => openTask()}
+        >
+          <Plus size={18} />
+          <span>빠른 추가</span>
+        </Button>
         <button
           className="icon-button"
           aria-label="알림함"
@@ -265,9 +291,7 @@ export function Planner({
       </header>
       {preview && (
         <div className="preview-banner">
-          <span>
-            플래너 체험 중 · 변경은 메모리에만 남고 종료하면 사라집니다.
-          </span>
+          <span>체험 중 · 변경은 저장되지 않아요.</span>
           <button onClick={() => void onLogout()}>
             체험 종료 <ArrowRight size={13} />
           </button>
@@ -299,42 +323,32 @@ export function Planner({
       )}
       <main className="planner-paper">
         <div className="planner-heading">
-          <div className="month-number">{String(month).padStart(2, "0")}</div>
           <div className="week-caption">
-            <span className="eyebrow">{year} WEEKLY PLANNER</span>
             <h1>이번 주, 나의 흐름</h1>
             <span>
-              {format(parseISO(week), "MM.dd")} —{" "}
-              {format(parseISO(addDays(week, 6)), "MM.dd")}
-              <span className="week-badge">
-                WEEK {getISOWeek(parseISO(week))}
-              </span>
+              {format(parseISO(week), "yyyy년 M월 d일")} –{" "}
+              {format(parseISO(addDays(week, 6)), "M월 d일")}
             </span>
           </div>
-          <div className="planner-nav">
+          <div className="workspace-actions">
             <div className="week-navigation">
-              <button
-                className="icon-button"
-                aria-label="이전 주"
+              <IconButton
+                label="이전 주"
                 onClick={() => nav(addDays(week, -7))}
               >
                 <ChevronLeft size={20} />
-              </button>
-              <button
+              </IconButton>
+              <Button
                 className="today-button"
                 onClick={() => nav(today(data.profile.timezone))}
               >
                 오늘
-              </button>
-              <button
-                className="icon-button"
-                aria-label="다음 주"
-                onClick={() => nav(addDays(week, 7))}
-              >
+              </Button>
+              <IconButton label="다음 주" onClick={() => nav(addDays(week, 7))}>
                 <ChevronRight size={20} />
-              </button>
+              </IconButton>
               <label className="date-picker" title="날짜로 이동">
-                <CalendarDays size={16} />
+                <CalendarDays size={19} />
                 <input
                   type="date"
                   aria-label="날짜로 주 이동"
@@ -344,75 +358,45 @@ export function Planner({
                   }}
                 />
               </label>
-              <button
-                className="icon-button desktop-only"
-                aria-label="사이드 패널 접기"
-                onClick={() => setCollapsed((v) => !v)}
-              >
-                {collapsed ? (
-                  <PanelRightOpen size={18} />
-                ) : (
-                  <PanelRightClose size={18} />
-                )}
-              </button>
             </div>
-            <nav className="month-navigation" aria-label="월 이동">
-              {[
-                "JAN",
-                "FEB",
-                "MAR",
-                "APR",
-                "MAY",
-                "JUN",
-                "JUL",
-                "AUG",
-                "SEP",
-                "OCT",
-                "NOV",
-                "DEC",
-              ].map((m, i) => (
-                <button
-                  key={m}
-                  className={i + 1 === month ? "active" : ""}
-                  onClick={() =>
-                    nav(`${year}-${String(i + 1).padStart(2, "0")}-01`)
-                  }
-                >
-                  {m}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-        <div className="planner-meta">
-          <span>MAKE ROOM FOR WHAT MATTERS.</span>
-          <div className="category-legend">
-            {data.categories
-              .filter((c) => !c.archived_at)
-              .map((c) => (
-                <span key={c.id}>
-                  <i style={{ backgroundColor: c.color }} />
-                  {c.name}
-                </span>
-              ))}
+            <Button
+              className="review-entry"
+              aria-label="주간 회고 열기"
+              onClick={() => setEditor({ type: "review" })}
+            >
+              <NotebookPen size={18} />
+              <span>주간 회고</span>
+              {data.week_reviews.some(
+                (r) => r.week_start === week && r.finalized_at,
+              ) && <Check size={16} />}
+            </Button>
+            <IconButton
+              className="desktop-only"
+              label={collapsed ? "사이드 패널 펼치기" : "사이드 패널 접기"}
+              onClick={() => setCollapsed((v) => !v)}
+            >
+              {collapsed ? (
+                <PanelRightOpen size={20} />
+              ) : (
+                <PanelRightClose size={20} />
+              )}
+            </IconButton>
           </div>
         </div>
         {(store.error || recurrenceStatus) && (
           <div className="notice" role="status">
-            {store.error || recurrenceStatus}
+            {store.error ? userMessage(store.error) : recurrenceStatus}
             {store.error && (
               <button onClick={() => store.setError("")}>닫기</button>
             )}
           </div>
         )}
-        {
-          <div className="holiday-notice">
-            {holidays.data?.known
-              ? `공휴일 확인됨 · ${holidays.data.fetchedAt?.slice(0, 10)} 갱신${holidays.data.fetchedAt && openedAt - Date.parse(holidays.data.fetchedAt) > 45 * 86400000 ? " · 오래된 자료이므로 갱신을 확인하세요." : ""}`
-              : "공휴일 데이터 미확인 · 주말은 표시되며, 평일 가용 시간은 잠정값입니다."}
+        {!holidays.data?.known && (
+          <div className="holiday-notice" role="status">
+            공휴일 미확인 · 가용 시간은 잠정값입니다.
             <button onClick={() => void holidays.refetch()}>다시 확인</button>
           </div>
-        }
+        )}
         {nonRepeat.length > 0 && !carryDismissed.includes(week) && (
           <div className="carry-banner">
             <span>
@@ -440,6 +424,7 @@ export function Planner({
           {days.map((date, i) => (
             <button
               key={date}
+              aria-pressed={mobileDay === i}
               className={`${mobileDay === i ? "active" : ""} ${i === 6 || holidayNames.has(date) ? "holiday" : i === 5 ? "saturday" : ""}`}
               onClick={() => setMobileDay(i)}
             >
@@ -453,6 +438,7 @@ export function Planner({
             data={data}
             days={days}
             mobileDay={mobileDay}
+            onDayChange={setMobileDay}
             holidayNames={holidayNames}
             holidayKnown={holidays.data?.known ?? false}
             onEdit={(block) =>
@@ -466,49 +452,29 @@ export function Planner({
             onCreate={create}
             commit={store.commit}
           />
-          <div className={`panel-wrapper ${sheet ? "sheet-open" : ""}`}>
-            <div className="sheet-header">
-              <b>이번 주 계획</b>
-              <button
-                className="icon-button"
-                aria-label="할 일 패널 닫기"
-                onClick={() => setSheet(false)}
-              >
-                <X size={20} />
-              </button>
+          {!mobile && (
+            <div className="panel-wrapper">
+              <SidePanel
+                data={data}
+                week={week}
+                commit={store.commit}
+                onTask={openTask}
+              />
             </div>
-            <SidePanel
-              data={data}
-              week={week}
-              commit={store.commit}
-              onTask={openTask}
-            />
-          </div>
-          {sheet && (
-            <button
-              className="sheet-overlay"
-              aria-label="할 일 패널 닫기"
-              onClick={() => setSheet(false)}
-            />
           )}
         </div>
-        <Review data={data} week={week} commit={store.commit} />
-        <footer className="paper-footer">
-          <span>
-            WEEKFLOW <b>/</b> ONE WEEK AT A TIME.
-          </span>
-          <span>
-            {year} · {data.profile.timezone}
-          </span>
-        </footer>
       </main>
       <div className="mobile-toolbar">
         <button onClick={() => create(days[mobileDay], 540)}>
           <Plus size={18} />
           일정
         </button>
-        <button className="primary" onClick={() => setSheet(true)}>
-          TO-DO{" "}
+        <button
+          className="primary"
+          aria-haspopup="dialog"
+          onClick={() => setSheet(true)}
+        >
+          할 일{" "}
           <span>
             {
               data.week_tasks.filter(
@@ -516,17 +482,35 @@ export function Planner({
               ).length
             }
           </span>
+          <span className="sr-only">열기</span>
         </button>
         <button
-          onClick={() =>
-            document
-              .querySelector(".weekly-review")
-              ?.scrollIntoView({ behavior: "smooth" })
-          }
+          aria-label="주간 회고 열기"
+          onClick={() => setEditor({ type: "review" })}
         >
           회고
         </button>
       </div>
+      {mobile && sheet && (
+        <Modal title="이번 주 계획" onClose={() => setSheet(false)}>
+          <SidePanel
+            data={data}
+            week={week}
+            commit={store.commit}
+            onTask={openTask}
+          />
+        </Modal>
+      )}
+      {editor?.type === "review" && (
+        <Modal title="주간 회고" wide onClose={() => setEditor(null)}>
+          <Review data={data} week={week} commit={store.commit} />
+        </Modal>
+      )}
+      {editor?.type === "appearance" && (
+        <Modal title="외관" onClose={() => setEditor(null)}>
+          <ThemeControls />
+        </Modal>
+      )}
       {store.undo && (
         <button className="undo-toast" onClick={() => void store.undo?.()}>
           <Undo2 size={16} />
@@ -614,7 +598,7 @@ export function Planner({
               className="primary"
               disabled={!selectedCarry.length}
               onClick={() =>
-                void carry().catch((e) => store.setError(String(e)))
+                void carry().catch((e) => store.setError(userMessage(e)))
               }
             >
               선택한 {selectedCarry.length}개 이월

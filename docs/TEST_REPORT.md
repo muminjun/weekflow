@@ -54,3 +54,23 @@
 - production build: 통과. 초기 JS 청크 약 568kB(압축 약 168kB)로 Vite의 500kB 경고가 남습니다. 플래너는 별도 lazy 청크입니다.
 - npm audit: 전체 의존성 취약점 0건.
 - source secret scan: 비밀키 패턴 없음.
+
+## 2026-11-16 viewport UI 개편 검증
+
+이번 세션에서 직접 실행한 결과:
+
+- typecheck / lint / production build / check:secrets 통과.
+- Vitest 47개 통과: 기존 동기화·반복·백업 검사와 PostgreSQL 통합 17개 유지. 외관 저장 실패/잘못된 JSON, 정확한 15분 높이·범위 clipping·카테고리 대비·오류 안내 추가.
+- Playwright 30개 통과, 2개 제외. 제외는 모바일 포인터 드래그/자정 포인터 이동이며 모바일의 실제 시간 선택 폼 경로는 별도로 검사했다. 기존 SW HTTP 캐시 업데이트 회귀 2개 유지.
+- 1366×768, 1440×900, 1920×1080, 1024×768, 390×844, 360×800에서 루트 가로/세로 스크롤 없음과 주요 영역 bounding box 확인. 본문 16px·일정 14px 실측. 큰 글자 모드에서도 작업/저장 및 루트 overflow 검사.
+- 네 테마 각각 PC/모바일 화면·외관 창 캡처. 각 메인 화면 axe serious/critical 0건. 편집창 기본 테마 axe, Escape/포커스 복귀, 테마 변경 중 폼·주 유지, 새로고침 후 외관 유지와 잘못된 저장값 복구 확인.
+- 설정 폼의 checkbox·number 값, 목표 저장·마감 진입·회고 저장/확정, Todo 생성/연결 배치, 7칸 수행 기록, 겹침 승인·15분 이동/종료 리사이즈·Undo 확인. 백업 비교로 테마 변경 후 카테고리·프로필 불변 확인.
+- 짧은 일정 키보드 편집·실제 마우스 클릭, 범위 밖 이동, 자정 두 구간, 자정 일정 가로 이동 시 원래 시간/지속 유지, 이전 주에서 이어진 일정으로 이동, 전체/저장 범위 상세 스크롤 확인. 코드 리뷰에서 발견한 세 경계 문제와 추가로 발견한 투명 키보드 전용 버튼의 포인터 가로채기를 수정했다.
+- 모바일의 축소된 390×500 viewport에서 입력/저장 버튼 접근을 검사했다. 이는 실제 OS 키보드/물리 기기 수동 검증이 아니다.
+- `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ production`: 실제 production build의 PC/모바일 SW 제어·appearance.js 사전 캐시·오프라인 새로고침 후 새 UI/다크 선택 유지 통과. 검사는 명시적 메모리 체험이며 실제 계정 데이터를 변경하지 않는다.
+- `public/sw.js`의 cache: reload와 공개 리소스 ignoreVary 경로 유지. appearance.js를 캐시 버전 해시와 사전 캐시에 추가.
+- 최종 초기 JS 약 572.68kB / gzip 169.75kB. 기존 500kB 경고는 남는다. 초기 외관 적용용 classic script는 의도적으로 public asset으로 제공되어 Vite의 비번들 경고가 있으며, SW 사전 캐시와 실제 offline 실행을 검증했다. 새 UI 의존성 없음.
+
+스크린샷: `ui-<width>x<height>.png`, `<desktop|mobile>-<blue|lime|mint|dark>-workspace.png`, `*-appearance.png`, `*-large-type.png`, `production-*-offline.png`.
+
+이번 UI 작업은 DB/Edge/자격 증명을 변경하지 않았고 실 API 검사 스크립트는 재실행하지 않았다. 해당 스크립트는 임시 Auth 계정과 인증 설정을 변경하므로 불필요한 서버 변경을 피했다. 이전 세션의 19개 실 API 성공은 과거 결과다. 실제 macOS Push 배너/클릭, 물리 모바일 PWA/Push, 다른 실제 기기 로그인, Safari/VoiceOver 수동 검수는 여전히 미검증이다.
