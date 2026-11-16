@@ -119,4 +119,22 @@ test("15-minute pointer move, resize, overlap approval and Undo", async ({
     "aria-description",
     /10:15–11:15/,
   );
+  const restored = (await block.boundingBox())!;
+  await page.mouse.move(restored.x + restored.width / 2, restored.y + 2);
+  await page.mouse.down();
+  await page.mouse.move(
+    restored.x + restored.width / 2,
+    restored.y + 2 + scale / 4,
+    { steps: 8 },
+  );
+  await page.mouse.up();
+  await expect(block.locator(".block-content")).toHaveAttribute(
+    "aria-description",
+    /10:30–11:15/,
+  );
+  await page.getByRole("button", { name: "실행 취소", exact: true }).click();
+  await expect(block.locator(".block-content")).toHaveAttribute(
+    "aria-description",
+    /10:15–11:15/,
+  );
 });

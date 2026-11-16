@@ -67,3 +67,9 @@ Settings → Pages → Source: GitHub Actions. 공개 저장소에 main을 push�
 기존 공공데이터포털 승인 계정의 KASI 키를 GitHub Actions Secret에 직접 등록했습니다. 키를 재발급하거나 소스에 저장하지 않았습니다. 2025·2026·2027년 각 12개월을 실제 API에서 조회해 전체 검증 캐시를 생성했습니다. Supabase Auth의 Google enabled=true, email/anonymous=false와 Google Cloud의 프로덕션 단계를 직접 확인했습니다.
 
 GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로고침 유지, Mac Chrome Push 수신을 확인했습니다. 배포 환경의 브랜치 정책은 main입니다. DB 마이그레이션 001~013이 적용되어 있습니다. 모바일 기기와 알림 클릭 검증은 테스트 보고서의 남은 항목을 따릅니다.
+
+## UI 외관 및 업데이트 검수
+
+2026-11-16 개편도 기존 `main` → Quality gates / Deploy Pages 흐름으로 배포한다. 별도 호스팅이나 Supabase 변경이 없다. 외관 초기 적용 파일 `appearance.js`는 SW 사전 캐시에 포함되고 그 내용이 캐시 버전 해시에 들어간다. `public/sw.js`의 HTTP cache reload와 공개 정적 리소스 ignoreVary 처리는 유지한다.
+
+배포 검수는 `node scripts/verify-ui.mjs https://muminjun.github.io/weekflow/ live-redesign`로 반복할 수 있다. 새 격리 브라우저에서 메모리 체험만 사용해 PC/모바일 UI, 실제 폰트, 스크롤, SW 제어, 오프라인 재실행과 외관 유지를 검사하며 실제 계정에 쓰지 않는다. 실제 계정 검수는 별도 새 창에서 미전송 변경과 열린 폼을 먼저 확인하고 기존 ‘새 버전 열기’를 사용한다. 이번 UI 커밋의 실제 배포와 기존 로그인 세션의 업데이트 결과는 TEST_REPORT에 기록했다.

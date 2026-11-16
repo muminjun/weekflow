@@ -64,7 +64,7 @@
 - Playwright 30개 통과, 2개 제외. 제외는 모바일 포인터 드래그/자정 포인터 이동이며 모바일의 실제 시간 선택 폼 경로는 별도로 검사했다. 기존 SW HTTP 캐시 업데이트 회귀 2개 유지.
 - 1366×768, 1440×900, 1920×1080, 1024×768, 390×844, 360×800에서 루트 가로/세로 스크롤 없음과 주요 영역 bounding box 확인. 본문 16px·일정 14px 실측. 큰 글자 모드에서도 작업/저장 및 루트 overflow 검사.
 - 네 테마 각각 PC/모바일 화면·외관 창 캡처. 각 메인 화면 axe serious/critical 0건. 편집창 기본 테마 axe, Escape/포커스 복귀, 테마 변경 중 폼·주 유지, 새로고침 후 외관 유지와 잘못된 저장값 복구 확인.
-- 설정 폼의 checkbox·number 값, 목표 저장·마감 진입·회고 저장/확정, Todo 생성/연결 배치, 7칸 수행 기록, 겹침 승인·15분 이동/종료 리사이즈·Undo 확인. 백업 비교로 테마 변경 후 카테고리·프로필 불변 확인.
+- 설정 폼의 checkbox·number 값, 목표 저장·마감 진입·회고 저장/확정, Todo 생성/연결 배치, 7칸 수행 기록, 겹침 승인·15분 이동/시작·종료 리사이즈·Undo 확인. 백업 비교로 테마 변경 후 카테고리·프로필 불변 확인.
 - 짧은 일정 키보드 편집·실제 마우스 클릭, 범위 밖 이동, 자정 두 구간, 자정 일정 가로 이동 시 원래 시간/지속 유지, 이전 주에서 이어진 일정으로 이동, 전체/저장 범위 상세 스크롤 확인. 코드 리뷰에서 발견한 세 경계 문제와 추가로 발견한 투명 키보드 전용 버튼의 포인터 가로채기를 수정했다.
 - 모바일의 축소된 390×500 viewport에서 입력/저장 버튼 접근을 검사했다. 이는 실제 OS 키보드/물리 기기 수동 검증이 아니다.
 - `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ production`: 실제 production build의 PC/모바일 SW 제어·appearance.js 사전 캐시·오프라인 새로고침 후 새 UI/다크 선택 유지 통과. 검사는 명시적 메모리 체험이며 실제 계정 데이터를 변경하지 않는다.
@@ -74,3 +74,11 @@
 스크린샷: `ui-<width>x<height>.png`, `<desktop|mobile>-<blue|lime|mint|dark>-workspace.png`, `*-appearance.png`, `*-large-type.png`, `production-*-offline.png`.
 
 이번 UI 작업은 DB/Edge/자격 증명을 변경하지 않았고 실 API 검사 스크립트는 재실행하지 않았다. 해당 스크립트는 임시 Auth 계정과 인증 설정을 변경하므로 불필요한 서버 변경을 피했다. 이전 세션의 19개 실 API 성공은 과거 결과다. 실제 macOS Push 배너/클릭, 물리 모바일 PWA/Push, 다른 실제 기기 로그인, Safari/VoiceOver 수동 검수는 여전히 미검증이다.
+
+### 실배포 확인
+
+- UI 커밋 `cb57c27b4ccc9fca7913ac643884920fa7130d4a`의 [Quality gates](https://github.com/muminjun/weekflow/actions/runs/43854821206)와 [Deploy Pages](https://github.com/muminjun/weekflow/actions/runs/43854821048) 모두 성공.
+- `node scripts/verify-ui.mjs https://muminjun.github.io/weekflow/ live-redesign`로 실제 URL의 PC 1366×768 / 모바일 에뮬레이션 390×844에서 본문16px·일정14px, 루트 가로/세로 스크롤 없음, SW 제어와 외관 파일 사전 캐시, 오프라인 새로고침 후 새 UI·다크 유지 확인. 캐시 `weekflow-shell-/weekflow/7e2e5d8663f6`.
+- 사용자가 쓰던 탭과 별개인 새 Chrome 창에서 기존 Google 로그인 세션을 보존한 채 이전 UI의 ‘새 버전 열기’를 실제로 눌렀다. 업데이트 후 authenticated=true, 새 blue 테마, 09–18 범위, 본문16px, 같은 선택 주와 할 일/블록 수, 실제 ‘저장됨’ 상태와 가로/세로 스크롤 없음 확인. 사용자 데이터 작성·삭제, 인증 설정 변경 없음.
+- 시작 핸들의 15분 리사이즈와 Undo도 기존 포인터 회귀 검사에 추가하고 전체 E2E를 다시 실행해 30개 성공/2개 모바일 포인터 제외를 확인했다.
+- 실제 배포 캡처: `docs/screenshots/live-redesign-desktop.png`, `live-redesign-mobile.png`, `live-redesign-*-offline.png`. 이 캡처는 명시적 메모리 체험이며 물리 모바일 검수가 아니다.

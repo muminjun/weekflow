@@ -37,4 +37,6 @@
 - [x] Exercise six viewport sizes, all themes, forms, mobile tracker, task/block distinction, goals/review/backup and PWA update.
 - [x] Run typecheck, lint, full unit suite, E2E, production build and secret scan.
 - [x] Review complete diff, update test/deployment docs and screenshots.
-- [ ] Commit/push existing main; watch Quality gates and Pages success; inspect live new UI and offline SW version.
+- [x] Commit/push existing main; watch Quality gates and Pages success; inspect live new UI and offline SW version.
+
+Delivery: UI commit cb57c27; Quality gates 43854821206 and Deploy Pages 43854821048 succeeded. Production URL and authenticated old→new SW transition verified. See docs/TEST_REPORT.md for evidence and retained hardware/OS limitations. Independent review found three P2 timing/click/navigation edge cases; all were fixed and regression-checked.
