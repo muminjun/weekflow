@@ -1,10 +1,11 @@
-import { test, expect } from "@playwright/test";
+import { acceptConfirmations } from "./ui-helpers";
+import { test, expect } from "./fixtures";
 test("login, paper preview, inline Todo, multi-block editor, settings, screenshot", async ({
   page,
 }, info) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  page.on("dialog", (d) => void d.accept());
+  await acceptConfirmations(page);
   await page.goto("");
   await expect(
     page.getByRole("button", { name: "Google로 시작하기" }),
@@ -83,7 +84,7 @@ test("15-minute pointer move, resize, overlap approval and Undo", async ({
     info.project.name !== "desktop",
     "Touch has equivalent time selectors",
   );
-  page.on("dialog", (d) => void d.accept());
+  await acceptConfirmations(page);
   await page.goto("");
   await page.getByRole("button", { name: /저장 없이 플래너/ }).click();
   const block = page.locator(".time-block").filter({ hasText: "주간 팀 미팅" });

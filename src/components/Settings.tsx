@@ -1,3 +1,7 @@
+import { NotificationSetup } from "./NotificationSetup";
+import { confirmAction, promptAction } from "../ui/Confirmations";
+import { Select } from "../ui/Select";
+import { Input } from "../ui/Input";
 import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { Download, Upload, LogOut, Bell, Trash2 } from "lucide-react";
@@ -32,6 +36,9 @@ export function Settings({
   preview: boolean;
 }) {
   const [tab, setTab] = useState("기본");
+  const [notificationEnabled, setNotificationEnabled] = useState(
+    data.notification_preferences.enabled,
+  );
   const [message, setMessage] = useState("");
   const [backup, setBackup] = useState<Backup | null>(null);
   const [csvBom, setCsvBom] = useState(true);
@@ -48,17 +55,39 @@ export function Settings({
   return (
     <Modal title="설정" onClose={onClose} wide>
       <div className="settings-tabs">
-        {["기본", "카테고리", "반복", "알림", "백업", "계정"].map((t) => (
-          <button
-            key={t}
-            className={tab === t ? "active" : ""}
-            onClick={() => setTab(t)}
-          >
-            {t}
-          </button>
-        ))}
+        {["기본", "카테고리", "반복", "알림", "백업", "계정", "사용법"].map(
+          (t) => (
+            <button
+              key={t}
+              className={tab === t ? "active" : ""}
+              onClick={() => setTab(t)}
+            >
+              {t}
+            </button>
+          ),
+        )}
       </div>
       <div className="settings-content">
+        {tab === "사용법" && (
+          <section className="help-section">
+            <h3>한 화면에서 만드는 나의 한 주</h3>
+            <p>
+              할 일을 적고 빈 시간에 배치하세요. 처음 안내를 다시 보면서 화면의
+              기능을 살펴볼 수 있어요.
+            </p>
+            <button
+              className="primary"
+              onClick={() => {
+                onClose();
+                requestAnimationFrame(() =>
+                  window.dispatchEvent(new Event("weekflow:show-coach")),
+                );
+              }}
+            >
+              사용법 다시 보기
+            </button>
+          </section>
+        )}
         {tab === "기본" && (
           <form
             onSubmit={(e) => {
@@ -135,11 +164,11 @@ export function Settings({
             <div className="form-pair">
               <label>
                 시간대
-                <input name="timezone" defaultValue={data.profile.timezone} />
+                <Input name="timezone" defaultValue={data.profile.timezone} />
               </label>
               <label>
                 시간표 확대
-                <select
+                <Select
                   name="pixels_per_hour"
                   defaultValue={data.profile.pixels_per_hour}
                 >
@@ -148,13 +177,13 @@ export function Settings({
                       {v}px / 시간
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
             <div className="form-pair">
               <label>
                 표시 시작
-                <select
+                <Select
                   name="display_start_minute"
                   defaultValue={data.profile.display_start_minute}
                 >
@@ -163,11 +192,11 @@ export function Settings({
                       {timeLabel(i * 60)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <label>
                 표시 종료
-                <select
+                <Select
                   name="display_end_minute"
                   defaultValue={data.profile.display_end_minute}
                 >
@@ -176,7 +205,7 @@ export function Settings({
                       {timeLabel((i + 1) * 60)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
             </div>
             <fieldset>
@@ -184,7 +213,7 @@ export function Settings({
               {["월", "화", "수", "목", "금", "토", "일"].map((d, i) => (
                 <label className="availability-setting" key={d}>
                   <span>{d}</span>
-                  <input
+                  <Input
                     name={`day${i + 1}`}
                     placeholder="휴무 또는 09:00-12:00,13:00-18:00"
                     defaultValue={data.availability_rules
@@ -242,13 +271,13 @@ export function Settings({
                   );
                 }}
               >
-                <input
+                <Input
                   type="color"
                   name="color"
                   aria-label={`${c.name} 색상`}
                   defaultValue={c.color}
                 />
-                <input
+                <Input
                   name="name"
                   aria-label={`${c.name} 이름`}
                   defaultValue={c.name}
@@ -256,7 +285,7 @@ export function Settings({
                   maxLength={60}
                 />
                 <label className="check-label">
-                  <input
+                  <Input
                     type="checkbox"
                     name="archive"
                     defaultChecked={!!c.archived_at}
@@ -267,8 +296,8 @@ export function Settings({
                 <button
                   type="button"
                   aria-label={`${c.name} 삭제`}
-                  onClick={() => {
-                    const target = window.prompt(
+                  onClick={async () => {
+                    const target = await promptAction(
                       "연결된 작업과 일정을 옮길 카테고리 이름을 입력하세요.\n" +
                         data.categories
                           .filter((x) => x.id !== c.id && !x.archived_at)
@@ -352,13 +381,13 @@ export function Settings({
                 );
               }}
             >
-              <input
+              <Input
                 type="color"
                 name="color"
                 aria-label="새 카테고리 색상"
                 defaultValue="#DBE8BD"
               />
-              <input
+              <Input
                 name="name"
                 aria-label="새 카테고리 이름"
                 placeholder="새 카테고리"
@@ -429,6 +458,12 @@ export function Settings({
         )}
         {tab === "알림" && (
           <>
+            <NotificationSetup
+              data={data}
+              commit={commit}
+              preview={preview}
+              onEnabled={() => setNotificationEnabled(true)}
+            />
             <p className="small muted">
               앱 내부 알림은 플래너의 알림함에서 확인합니다. OS Push는
               HTTPS·브라우저 지원·서버 실행이 필요하며 수분 지연될 수 있습니다.
@@ -471,10 +506,23 @@ export function Settings({
                 ] as const
               ).map((key, i) => (
                 <label className="check-label" key={key}>
-                  <input
+                  <Input
                     type="checkbox"
+                    role="switch"
                     name={key}
-                    defaultChecked={data.notification_preferences[key]}
+                    checked={
+                      key === "enabled" ? notificationEnabled : undefined
+                    }
+                    onChange={
+                      key === "enabled"
+                        ? (e) => setNotificationEnabled(e.target.checked)
+                        : undefined
+                    }
+                    defaultChecked={
+                      key === "enabled"
+                        ? undefined
+                        : data.notification_preferences[key]
+                    }
                   />
                   {
                     [
@@ -489,7 +537,7 @@ export function Settings({
               ))}
               <label>
                 일정 시작 몇 분 전
-                <input
+                <Input
                   type="number"
                   min={0}
                   max={1440}
@@ -502,7 +550,7 @@ export function Settings({
               <div className="form-pair">
                 <label>
                   방해금지 시작
-                  <input
+                  <Input
                     type="time"
                     name="quiet_start"
                     defaultValue={
@@ -512,7 +560,7 @@ export function Settings({
                 </label>
                 <label>
                   방해금지 종료
-                  <input
+                  <Input
                     type="time"
                     name="quiet_end"
                     defaultValue={data.notification_preferences.quiet_end ?? ""}
@@ -522,33 +570,24 @@ export function Settings({
               <button className="primary">알림 설정 저장</button>
             </form>
             <div className="secondary-actions">
-              {(["subscribe", "test", "unsubscribe"] as const).map(
-                (action, i) => (
-                  <button
-                    key={action}
-                    disabled={preview}
-                    onClick={() =>
-                      void run(
-                        () => pushAction(action),
-                        [
-                          "기기 Push 구독을 등록했습니다. 알림 사용 설정도 켜주세요.",
-                          "서버에서 테스트 발송을 요청했습니다. 실제 기기에서 수신을 확인하세요.",
-                          "기기 구독을 해제했습니다.",
-                        ][i],
-                      )
-                    }
-                  >
-                    <Bell size={14} />
-                    {
+              {(["test", "unsubscribe"] as const).map((action, i) => (
+                <button
+                  key={action}
+                  disabled={preview}
+                  onClick={() =>
+                    void run(
+                      () => pushAction(action),
                       [
-                        "브라우저 알림 켜기",
-                        "테스트 Push 보내기",
-                        "이 기기 구독 해제",
-                      ][i]
-                    }
-                  </button>
-                ),
-              )}
+                        "서버에서 테스트 발송을 요청했습니다. 실제 기기에서 수신을 확인하세요.",
+                        "기기 구독을 해제했습니다.",
+                      ][i],
+                    )
+                  }
+                >
+                  <Bell size={14} />
+                  {["테스트 Push 보내기", "이 기기 구독 해제"][i]}
+                </button>
+              ))}
             </div>
             {preview && (
               <p className="notice">
@@ -586,7 +625,7 @@ export function Settings({
               </button>
             </div>
             <label className="check-label">
-              <input
+              <Input
                 type="checkbox"
                 checked={csvBom}
                 onChange={(e) => setCsvBom(e.target.checked)}
@@ -596,7 +635,7 @@ export function Settings({
             <label className="file-label">
               <Upload size={18} />
               JSON 백업 선택
-              <input
+              <Input
                 type="file"
                 accept="application/json,.json"
                 onChange={(e) => {
@@ -643,19 +682,20 @@ export function Settings({
                     key={mode}
                     className={mode === "replace" ? "danger" : ""}
                     disabled={preview}
-                    onClick={() => {
+                    onClick={async () => {
                       if (
-                        !window.confirm(
+                        !(await confirmAction(
                           mode === "replace"
                             ? "현재 계정의 도메인 데이터를 모두 지우고 교체합니다. 계속할까요?"
                             : "같은 ID는 백업 내용으로 병합합니다. 계속할까요?",
-                        )
+                        ))
                       )
                         return;
                       if (
                         mode === "replace" &&
-                        window.prompt("최종 확인: 교체 를 입력하세요.") !==
-                          "교체"
+                        (await promptAction(
+                          "최종 확인: 교체 를 입력하세요.",
+                        )) !== "교체"
                       )
                         return;
                       void run(async () => {
@@ -695,17 +735,17 @@ export function Settings({
                 </p>
                 <button
                   className="danger"
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      !window.confirm(
+                      !(await confirmAction(
                         "계정과 모든 데이터, Push 구독을 영구 삭제할까요?",
-                      )
+                      ))
                     )
                       return;
                     if (
-                      window.prompt(
+                      (await promptAction(
                         "최종 확인: WEEKFLOW 삭제 를 입력하세요.",
-                      ) !== "WEEKFLOW 삭제"
+                      )) !== "WEEKFLOW 삭제"
                     )
                       return;
                     void run(async () => {

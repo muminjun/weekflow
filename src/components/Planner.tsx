@@ -1,3 +1,7 @@
+import { Coachmarks } from "./Coachmarks";
+import { FirstWeekSetup } from "./NotificationSetup";
+import { confirmAction } from "../ui/Confirmations";
+import { Input } from "../ui/Input";
 import { userMessage } from "../ui/errors";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
@@ -13,7 +17,6 @@ import {
   NotebookPen,
   Undo2,
   RefreshCw,
-  CalendarDays,
   X,
   Check,
 } from "lucide-react";
@@ -79,6 +82,15 @@ export function Planner({
   );
   const [sheet, setSheet] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    const replay = () => {
+      setCollapsed(false);
+      setSheet(false);
+      setEditor(null);
+    };
+    window.addEventListener("weekflow:show-coach", replay);
+    return () => window.removeEventListener("weekflow:show-coach", replay);
+  }, []);
   const [carryDismissed, setCarryDismissed] = useState<string[]>([]);
   const days = Array.from({ length: 7 }, (_, i) => addDays(week, i));
   const years = [...new Set(days.map((d) => Number(d.slice(0, 4))))];
@@ -193,9 +205,9 @@ export function Planner({
       selectedCarry.some((id) =>
         prevOpen.some((w) => w.id === id && !nonRepeat.includes(w)),
       ) &&
-      !window.confirm(
+      !(await confirmAction(
         "반복 Todo의 이전 회차를 이월합니다. 다음 반복 회차와 별개로 남습니다. 계속할까요?",
-      )
+      ))
     )
       return;
     if (preview) {
@@ -283,7 +295,7 @@ export function Planner({
         </button>
         <button
           className="account-button"
-          title={preview ? "체험 종료" : "로그아웃"}
+          data-tooltip={preview ? "체험 종료" : "로그아웃"}
           onClick={() => void onLogout()}
         >
           {preview ? "체험" : "나"}
@@ -297,30 +309,12 @@ export function Planner({
           </button>
         </div>
       )}
-      {!data.profile.onboarding_completed && (
-        <section className="onboarding">
-          <b>나만의 첫 주를 준비해 보세요.</b>
-          <span>서울 시간 · 월요일 시작 · 평일 09–18시 · 알림 꺼짐</span>
-          <button onClick={() => setEditor({ type: "settings" })}>
-            기본 설정 살펴보기
-          </button>
-          <button
-            className="primary"
-            onClick={() =>
-              void store.commit([
-                {
-                  table: "profiles",
-                  action: "update",
-                  row: { id: data.profile.id, onboarding_completed: true },
-                  expected_version: data.profile.version,
-                },
-              ])
-            }
-          >
-            이 설정으로 시작
-          </button>
-        </section>
-      )}
+      <FirstWeekSetup
+        data={data}
+        commit={store.commit}
+        preview={preview}
+        onSettings={() => setEditor({ type: "settings" })}
+      />
       <main className="planner-paper">
         <div className="planner-heading">
           <div className="week-caption">
@@ -347,17 +341,16 @@ export function Planner({
               <IconButton label="다음 주" onClick={() => nav(addDays(week, 7))}>
                 <ChevronRight size={20} />
               </IconButton>
-              <label className="date-picker" title="날짜로 이동">
-                <CalendarDays size={19} />
-                <input
-                  type="date"
-                  aria-label="날짜로 주 이동"
-                  value={week}
-                  onChange={(e) => {
-                    if (e.target.value) nav(e.target.value);
-                  }}
-                />
-              </label>
+              <Input
+                compact
+                type="date"
+                aria-label="날짜로 주 이동"
+                value={week}
+                onChange={(e) => {
+                  if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value))
+                    nav(e.target.value);
+                }}
+              />
             </div>
             <Button
               className="review-entry"
@@ -370,17 +363,19 @@ export function Planner({
                 (r) => r.week_start === week && r.finalized_at,
               ) && <Check size={16} />}
             </Button>
-            <IconButton
-              className="desktop-only"
-              label={collapsed ? "사이드 패널 펼치기" : "사이드 패널 접기"}
+            <Button
+              className="desktop-only workspace-expand"
+              aria-label={collapsed ? "작업 패널 펼치기" : "일정 넓게 보기"}
+              aria-pressed={collapsed}
               onClick={() => setCollapsed((v) => !v)}
             >
               {collapsed ? (
-                <PanelRightOpen size={20} />
+                <PanelRightOpen size={18} />
               ) : (
-                <PanelRightClose size={20} />
+                <PanelRightClose size={18} />
               )}
-            </IconButton>
+              <span>{collapsed ? "작업 패널" : "일정 넓게"}</span>
+            </Button>
           </div>
         </div>
         {(store.error || recurrenceStatus) && (
@@ -404,7 +399,7 @@ export function Planner({
               가져올까요?
             </span>
             <button
-              onClick={() => {
+              onClick={async () => {
                 setSelectedCarry(nonRepeat.map((w) => w.id));
                 setEditor({ type: "carry" });
               }}
@@ -511,6 +506,10 @@ export function Planner({
           <ThemeControls />
         </Modal>
       )}
+      <Coachmarks
+        enabled={!editor && !sheet}
+        autoStart={data.profile.onboarding_completed}
+      />
       {store.undo && (
         <button className="undo-toast" onClick={() => void store.undo?.()}>
           <Undo2 size={16} />
@@ -578,7 +577,7 @@ export function Planner({
           </button>
           {prevOpen.map((w) => (
             <label className="check-label" key={w.id}>
-              <input
+              <Input
                 type="checkbox"
                 checked={selectedCarry.includes(w.id)}
                 onChange={(e) =>
@@ -613,7 +612,7 @@ export function Planner({
               <button
                 className={`notification-row ${n.read_at ? "read" : ""}`}
                 key={n.id}
-                onClick={() => {
+                onClick={async () => {
                   void store.commit([
                     {
                       table: "in_app_notifications",

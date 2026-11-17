@@ -1,3 +1,5 @@
+import { confirmAction } from "../ui/Confirmations";
+import { Input } from "../ui/Input";
 import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { Plus, ArrowUpRight, GripVertical } from "lucide-react";
@@ -321,7 +323,7 @@ export function SidePanel({
               .filter((g) => g.week_start === addDays(week, -7))
               .map((g) => (
                 <label className="check-label" key={g.id}>
-                  <input type="checkbox" name="goals" value={g.id} />
+                  <Input type="checkbox" name="goals" value={g.id} />
                   {g.title}
                 </label>
               ))}
@@ -379,7 +381,7 @@ export function SidePanel({
           >
             <label>
               목표
-              <input
+              <Input
                 autoFocus
                 required
                 maxLength={240}
@@ -398,7 +400,7 @@ export function SidePanel({
               <legend>연결할 이번 주 할 일</legend>
               {wt.map((w) => (
                 <label className="check-label" key={w.id}>
-                  <input
+                  <Input
                     type="checkbox"
                     name="tasks"
                     value={w.id}
@@ -415,10 +417,10 @@ export function SidePanel({
                 <button
                   type="button"
                   className="danger text-button"
-                  onClick={() => {
+                  onClick={async () => {
                     const g = goals.find((g) => g.id === goalEdit)!;
                     if (
-                      window.confirm(
+                      await confirmAction(
                         "이 목표와 연결만 삭제할까요? Todo는 유지됩니다.",
                       )
                     )

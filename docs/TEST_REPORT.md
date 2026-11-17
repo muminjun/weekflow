@@ -82,3 +82,23 @@
 - 사용자가 쓰던 탭과 별개인 새 Chrome 창에서 기존 Google 로그인 세션을 보존한 채 이전 UI의 ‘새 버전 열기’를 실제로 눌렀다. 업데이트 후 authenticated=true, 새 blue 테마, 09–18 범위, 본문16px, 같은 선택 주와 할 일/블록 수, 실제 ‘저장됨’ 상태와 가로/세로 스크롤 없음 확인. 사용자 데이터 작성·삭제, 인증 설정 변경 없음.
 - 시작 핸들의 15분 리사이즈와 Undo도 기존 포인터 회귀 검사에 추가하고 전체 E2E를 다시 실행해 30개 성공/2개 모바일 포인터 제외를 확인했다.
 - 실제 배포 캡처: `docs/screenshots/live-redesign-desktop.png`, `live-redesign-mobile.png`, `live-redesign-*-offline.png`. 이 캡처는 명시적 메모리 체험이며 물리 모바일 검수가 아니다.
+
+## 2026-11-17 세부 컨트롤·코치마크 개편 검증
+
+- `npm run typecheck`, `npm run lint`, `npm test -- --run --maxWorkers=2`: 통과. Vitest 55개 통과(PostgreSQL 통합 17개 포함).
+- `npm run test:e2e -- --workers=2`: 39개 통과, 3개 제외. 모바일 포인터 이동/리사이즈 2개는 시간 선택 폼으로 별도 검증하고, 데스크톱 패널 확장 면적 검사는 모바일에서 제외한다. 기존 15분 이동·시작/종료 리사이즈·겹침 승인·Undo와 PWA HTTP 캐시 업데이트 회귀는 유지한다.
+- 월요일을 명시해 이전 주 자정 경계를 검사하도록 수정했다. 공휴일 로딩과 ResizeObserver가 화면 맞춤 크기를 갱신한 뒤 면적을 검사한다. 기대 시간이나 최소 면적 기준을 낮추지 않았다.
+- 지정 6개 viewport에서 루트 넘침과 주요 영역의 bounding box, 본문 16px·일정명 14px, 큰 글자 모드 확인. 1366×768 시간표 높이 420px 이상 및 패널 접기 후 폭 250px 이상 증가 검사.
+- 새 달력·시간·카테고리 선택, 키보드 날짜 이동, 중첩 포털과 포커스 복귀, FormData와 필수/최솟값/최댓값/15분 유효성, select reset/disabled 확인. PostgreSQL의 초 포함 시간값과 빈 시간 선택도 회귀 검사.
+- 첫 진입 코치마크 5단계, 건너뛰기/완료 후 유지, 설정에서 다시 보기, 패널을 접은 상태와 초기 설정 전 재실행 검사. 공휴일 안내가 사라져 레이아웃이 바뀐 뒤에도 spotlight가 실제 대상에 정렬되는지 검사.
+- 알림 권한/기기 등록 실패 시 선호 설정을 변경하지 않으며 성공 시 기존 version 검증 경로로 저장하는 단위 검사. 등록 후 설정 스위치와 저장값이 일치하고 작성 중 방해금지 시간이 보존되는지 검사. 실제 사용자 권한이나 알림 선호를 검수 목적으로 변경하지 않았다.
+- 4개 테마의 PC/모바일 달력과 메인 캡처, 새 컨트롤과 코치마크 PC/모바일 캡처를 직접 열어 검수했다. 메인·편집창 axe serious/critical 0건, 시간/색상 팝오버 추가 검사에서도 0건.
+- `npm run build`, `npm run check:secrets`: 통과. 소스 196개에서 비밀키 패턴 없음. `npm audit --omit=dev --audit-level=moderate`: 취약점 0건.
+- 초기 JS 615.98kB / gzip 184.60kB, lazy Planner 248.50kB / gzip 75.97kB, CSS 43.01kB / gzip 9.48kB. 기존 500kB 청크 경고와 초기 외관 public classic script의 비번들 안내는 남는다.
+- 공식 TDS 사용 범위/일반 브라우저 제약에 따라 공식 TDS를 설치하지 않았다. React 19를 유지하고 Radix Select/Popover와 WEEKFLOW 자체 공용 컨트롤을 사용한다. DB/Edge/인증/동기화 계층과 SW reload/ignoreVary 처리는 변경하지 않았다.
+
+주요 캡처: `refined-desktop-coachmark.png`, `refined-mobile-coachmark.png`, `refined-<desktop|mobile>-<theme>-calendar.png`, `refined-settings-time.png`, `refined-category-colors.png`, `refined-production-*.png`.
+
+물리 모바일·실제 OS 키보드·macOS Push 배너/클릭·Safari/VoiceOver·다른 실제 기기 로그인은 여전히 미검증이다. 모바일 캡처는 에뮬레이션이며 브라우저 수신을 OS 배너 성공으로 간주하지 않는다.
+
+- 최종 로컬 production build를 `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ refined-production`로 검사했다. PC/모바일 모두 루트 넘침 없음, 본문16px·일정14px, SW 제어·외관 파일 사전 캐시·다크 선택 유지와 오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/00bec1a716a9`.

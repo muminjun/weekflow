@@ -17,7 +17,7 @@ try {
     blue: "#f3f6fb",
     lime: "#f7f6ee",
     mint: "#f1f8f5",
-    dark: "#151a23",
+    dark: "#101013",
   }[theme];
 } catch {
   document.documentElement.dataset.theme = "blue";

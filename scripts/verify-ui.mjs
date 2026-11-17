@@ -15,6 +15,9 @@ try {
       hasTouch: name === "mobile",
     });
     const page = await context.newPage();
+    await page.addInitScript(() =>
+      localStorage.setItem("weekflow.coach.v1", "done"),
+    );
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(url);

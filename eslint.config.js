@@ -5,6 +5,9 @@ export default ts.config(
   {
     ignores: [
       "dist/**",
+      "test-results/**",
+      "playwright-report/**",
+      "coverage/**",
       "node_modules/**",
       "public/sw.js",
       "supabase/functions/**",

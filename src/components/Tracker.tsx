@@ -55,7 +55,7 @@ export function Tracker({
             key={date}
             data-weekday={["월", "화", "수", "목", "금", "토", "일"][i]}
             className={`tracker-cell ${line ? "after-done" : ""}`}
-            title={`${date}: ${label}${manual ? " (직접 기록)" : ""}`}
+            data-tooltip={`${date}: ${label}${manual ? " (직접 기록)" : ""}`}
             aria-pressed={status !== "empty"}
             aria-label={`${date} ${label}, 눌러 직접 기록 변경`}
             onClick={() => {

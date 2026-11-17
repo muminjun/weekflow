@@ -1,3 +1,6 @@
+import { confirmAction, alertAction } from "../ui/Confirmations";
+import { Select } from "../ui/Select";
+import { Input } from "../ui/Input";
 import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
@@ -24,7 +27,7 @@ export function CategorySelect({
   return (
     <label>
       카테고리
-      <select
+      <Select
         name="category_id"
         defaultValue={
           value ?? data.categories.find((c) => !c.archived_at)?.id ?? ""
@@ -38,7 +41,7 @@ export function CategorySelect({
               {c.name}
             </option>
           ))}
-      </select>
+      </Select>
     </label>
   );
 }
@@ -47,7 +50,7 @@ function RepeatFields({ date }: { date: string }) {
   return (
     <fieldset className="repeat-fields">
       <legend>반복</legend>
-      <select
+      <Select
         aria-label="반복 주기"
         name="repeat"
         value={freq}
@@ -57,12 +60,12 @@ function RepeatFields({ date }: { date: string }) {
         <option value="daily">매일</option>
         <option value="weekdays">평일</option>
         <option value="weekly">선택 요일</option>
-      </select>
+      </Select>
       {freq === "weekly" && (
         <div className="weekday-checks">
           {["월", "화", "수", "목", "금", "토", "일"].map((d, i) => (
             <label key={d}>
-              <input type="checkbox" name="weekdays" value={i + 1} />
+              <Input type="checkbox" name="weekdays" value={i + 1} />
               {d}
             </label>
           ))}
@@ -72,7 +75,7 @@ function RepeatFields({ date }: { date: string }) {
         <>
           <label>
             반복 시작일
-            <input
+            <Input
               name="repeat_start"
               type="date"
               required
@@ -81,10 +84,10 @@ function RepeatFields({ date }: { date: string }) {
           </label>
           <label>
             반복 종료일 (비워두면 계속)
-            <input name="repeat_end" type="date" min={date} />
+            <Input name="repeat_end" type="date" min={date} />
           </label>
           <label className="check-label">
-            <input type="checkbox" name="skip_holidays" />
+            <Input type="checkbox" name="skip_holidays" />
             공휴일 제외 · 공식 데이터가 없으면 생성 보류
           </label>
         </>
@@ -276,7 +279,7 @@ export function TaskEditor({
     );
     const skip =
       done && future.length
-        ? window.confirm(
+        ? await confirmAction(
             "앞으로 예정된 미완료 블록을 건너뜀으로 처리할까요?\n확인: 건너뜀 / 취소: 블록 유지",
           )
         : false;
@@ -315,11 +318,11 @@ export function TaskEditor({
     onClose();
   }
   return (
-    <Modal title={task ? "할 일 편집" : "새로운 할 일"} onClose={onClose}>
+    <Modal title={task ? "할 일 편집" : "새로운 할 일"} onClose={onClose} wide>
       <form onSubmit={(e) => void submit(e)}>
         <label>
           할 일
-          <input
+          <Input
             name="title"
             autoFocus
             required
@@ -336,7 +339,7 @@ export function TaskEditor({
           <CategorySelect data={data} value={task?.category_id} />
           <label>
             예상 소요 (분)
-            <input
+            <Input
               name="estimate_minutes"
               type="number"
               min={15}
@@ -349,7 +352,7 @@ export function TaskEditor({
         <div className="form-pair">
           <label>
             마감일
-            <input
+            <Input
               type="date"
               name="due_on"
               defaultValue={task?.due_on ?? ""}
@@ -357,7 +360,7 @@ export function TaskEditor({
           </label>
           <label>
             연결할 목표
-            <select name="goal" defaultValue={currentGoal}>
+            <Select name="goal" defaultValue={currentGoal}>
               <option value="">연결 안 함</option>
               {data.goals
                 .filter((g) => g.week_start === week)
@@ -366,7 +369,7 @@ export function TaskEditor({
                     {g.title}
                   </option>
                 ))}
-            </select>
+            </Select>
           </label>
         </div>
         {data.recurrence_occurrences.some((o) => o.task_id === task?.id) ? (
@@ -388,14 +391,14 @@ export function TaskEditor({
             <button
               type="button"
               className="danger text-button"
-              onClick={() => {
+              onClick={async () => {
                 const blocks = data.time_blocks.filter((b) =>
                   data.week_tasks.some(
                     (w) => w.task_id === task.id && w.id === b.week_task_id,
                   ),
                 );
                 if (
-                  window.confirm(
+                  await confirmAction(
                     `이 할 일과 연결된 시간 블록 ${blocks.length}개, 주간 기록을 삭제할까요?`,
                   )
                 )
@@ -485,16 +488,16 @@ export function BlockEditor({
       );
       if (
         overlaps.length &&
-        !window.confirm(
+        !(await confirmAction(
           `일정 중복: ${overlaps.map((b) => `${titleOf(data, b)} ${formatInTimeZone(b.start_at, zone, "HH:mm")}–${formatInTimeZone(b.end_at, zone, "HH:mm")}`).join(", ")}\n겹쳐서 배치할까요?`,
-        )
+        ))
       )
         return;
       if (
         !availability(data, date, holiday).focus.some(
           ([s, e]) => startMinute >= s && endMinute <= e,
         ) &&
-        !window.confirm("집중 가능 시간 밖에 배치합니다. 계속할까요?")
+        !(await confirmAction("집중 가능 시간 밖에 배치합니다. 계속할까요?"))
       )
         return;
       const changes: Change[] = [
@@ -585,7 +588,7 @@ export function BlockEditor({
         if (!other.length)
           window.setTimeout(
             () =>
-              window.alert(
+              void alertAction(
                 "연결된 계획 블록을 모두 완료했습니다. 할 일 상세에서 Todo 전체 완료를 확정할 수 있습니다.",
               ),
             100,
@@ -607,11 +610,12 @@ export function BlockEditor({
             : "새로운 고정 일정"
       }
       onClose={onClose}
+      wide
     >
       <form onSubmit={(e) => void submit(e)}>
         <label>
           {kind === "task" ? "연결된 할 일" : "일정 이름"}
-          <input
+          <Input
             name="title"
             autoFocus
             required={kind === "event"}
@@ -631,17 +635,17 @@ export function BlockEditor({
         <div className="form-pair">
           <label>
             시작 날짜
-            <input type="date" name="date" required defaultValue={date} />
+            <Input type="date" name="date" required defaultValue={date} />
           </label>
           <label>
             종료 날짜
-            <input type="date" name="endDate" required defaultValue={endDate} />
+            <Input type="date" name="endDate" required defaultValue={endDate} />
           </label>
         </div>
         <div className="form-pair">
           <label>
             시작
-            <input
+            <Input
               type="time"
               step={900}
               name="start"
@@ -651,7 +655,7 @@ export function BlockEditor({
           </label>
           <label>
             종료
-            <input
+            <Input
               type="time"
               step={900}
               name="end"
@@ -669,11 +673,11 @@ export function BlockEditor({
         </label>
         <label>
           블록 상태
-          <select name="state" defaultValue={block?.state ?? "planned"}>
+          <Select name="state" defaultValue={block?.state ?? "planned"}>
             <option value="planned">계획</option>
             <option value="done">완료</option>
             <option value="skipped">건너뜀</option>
-          </select>
+          </Select>
         </label>
         {kind === "event" &&
           (data.recurrence_occurrences.some(
@@ -698,9 +702,9 @@ export function BlockEditor({
             <button
               className="danger text-button"
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  window.confirm(
+                  await confirmAction(
                     "이 블록을 삭제할까요? 연결된 Todo는 유지됩니다.",
                   )
                 )
@@ -799,15 +803,15 @@ export function AvailabilityEditor({
       >
         <label>
           적용 방식
-          <select name="mode" defaultValue={old?.mode ?? "default"}>
+          <Select name="mode" defaultValue={old?.mode ?? "default"}>
             <option value="default">기본 규칙 적용</option>
             <option value="replace">이 날짜에 직접 지정</option>
             <option value="closed">하루 휴무</option>
-          </select>
+          </Select>
         </label>
         <label>
           사용 가능 구간
-          <input
+          <Input
             name="windows"
             placeholder="09:00-12:00,13:00-18:00"
             defaultValue={

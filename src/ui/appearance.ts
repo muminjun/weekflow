@@ -6,8 +6,8 @@ export const appearanceKey = "weekflow.appearance.v1";
 export const themes = [
   { id: "blue", name: "클린 블루", color: "#3182f6", background: "#f3f6fb" },
   { id: "lime", name: "페이퍼 라임", color: "#526b15", background: "#f7f6ee" },
-  { id: "mint", name: "소프트 민트", color: "#087d68", background: "#f1f8f5" },
-  { id: "dark", name: "다크", color: "#81b4ff", background: "#151a23" },
+  { id: "mint", name: "소프트 민트", color: "#086f5d", background: "#f1f8f5" },
+  { id: "dark", name: "다크", color: "#81b4ff", background: "#101013" },
 ] as const;
 export function readAppearance(storage: Pick<Storage, "getItem">): Appearance {
   try {

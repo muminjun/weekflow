@@ -22,7 +22,7 @@ export function IconButton({
       {...props}
       className={`icon-button ${props.className ?? ""}`}
       aria-label={label}
-      title={label}
+      data-tooltip={label}
     >
       {children}
     </Button>

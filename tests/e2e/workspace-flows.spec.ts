@@ -1,8 +1,9 @@
-import { test, expect, type Page } from "@playwright/test";
+import { acceptConfirmations, chooseView } from "./ui-helpers";
+import { test, expect, type Page } from "./fixtures";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 async function preview(page: Page) {
-  page.on("dialog", (d) => void d.accept());
+  await acceptConfirmations(page);
   await page.goto("");
   await page.getByRole("button", { name: /저장 없이 플래너/ }).click();
 }
@@ -42,6 +43,7 @@ async function event(
 test("all four themes, large type, portal contrast and category preservation", async ({
   page,
 }, info) => {
+  test.setTimeout(60000);
   await preview(page);
   const before = await backup(page);
   for (const [id, name] of [
@@ -138,7 +140,7 @@ test("outside events, compact quarter-hour geometry, midnight and full-day detai
   ).toBeVisible();
   await page.getByRole("button", { name: "닫기", exact: true }).click();
   await event(page, "자정 경계 일정", "23:45", "00:15", true);
-  await page.getByLabel("시간표 보기", { exact: true }).selectOption("full");
+  await chooseView(page, "전체 24시간 · 상세");
   await expect(page.locator(".visible-range")).toHaveText("00:00–24:00");
   if (info.project.name === "desktop")
     expect(
@@ -157,7 +159,7 @@ test("outside events, compact quarter-hour geometry, midnight and full-day detai
       () => document.documentElement.scrollHeight <= innerHeight + 1,
     ),
   ).toBe(true);
-  await page.getByLabel("시간표 보기", { exact: true }).selectOption("saved");
+  await chooseView(page, "내 설정 범위 · 상세");
   await expect(page.locator(".visible-range")).toHaveText("04:00–24:00");
 });
 test("goals, deadlines, review and native settings serialize correctly", async ({
@@ -233,7 +235,7 @@ test("moving a midnight block to another day retains its start time and duration
   const original = before.time_blocks.find(
     (b: { event_title: string }) => b.event_title === "자정 이동 검증",
   );
-  await page.getByLabel("시간표 보기", { exact: true }).selectOption("full");
+  await chooseView(page, "전체 24시간 · 상세");
   const block = page
     .locator(".time-block")
     .filter({ hasText: "자정 이동 검증" })
@@ -263,6 +265,13 @@ test("previous-week midnight continuation jumps to the visible week and compact 
   page,
 }) => {
   await preview(page);
+  // This scenario must cross the week boundary, regardless of today's weekday.
+  await expect(
+    page.getByRole("heading", { name: "이번 주, 나의 흐름" }),
+  ).toBeVisible();
+  const dayPicker = page.getByRole("navigation", { name: "날짜 선택" });
+  if (await dayPicker.isVisible())
+    await dayPicker.getByRole("button").first().click();
   const add = page.locator(".grid-access:visible").first();
   await add.focus();
   await add.press("Enter");

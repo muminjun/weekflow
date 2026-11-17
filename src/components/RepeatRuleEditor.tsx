@@ -1,3 +1,5 @@
+import { userMessage } from "../ui/errors";
+import { Input } from "../ui/Input";
 import { useState } from "react";
 import type { Change, Dataset, Rule } from "../domain/types";
 import { addDays, timeLabel, today } from "../domain/planner";
@@ -126,9 +128,9 @@ export function RepeatRuleEditor({
           }
           void commit(changes, true)
             .then(onClose)
-            .catch((e) => setError(String(e)));
+            .catch((e) => setError(userMessage(e)));
         } catch (e) {
-          setError(String(e));
+          setError(userMessage(e));
         }
       }}
     >
@@ -140,7 +142,7 @@ export function RepeatRuleEditor({
       <div className="form-pair">
         <label>
           변경 시작일
-          <input
+          <Input
             name="from"
             type="date"
             min={fromDate}
@@ -150,12 +152,12 @@ export function RepeatRuleEditor({
         </label>
         <label>
           반복 종료일
-          <input name="ends" type="date" defaultValue={rule.ends_on ?? ""} />
+          <Input name="ends" type="date" defaultValue={rule.ends_on ?? ""} />
         </label>
       </div>
       <label>
         제목
-        <input
+        <Input
           name="title"
           maxLength={240}
           defaultValue={String(rule.template.title)}
@@ -181,7 +183,7 @@ export function RepeatRuleEditor({
         {rule.kind === "event" && (
           <label>
             시작 시간
-            <input
+            <Input
               name="start"
               type="time"
               step={900}
@@ -191,7 +193,7 @@ export function RepeatRuleEditor({
         )}
         <label>
           {rule.kind === "event" ? "블록 길이" : "예상 소요"} (분)
-          <input
+          <Input
             name="duration"
             type="number"
             min={15}
@@ -206,7 +208,7 @@ export function RepeatRuleEditor({
       <div className="weekday-checks">
         {["월", "화", "수", "목", "금", "토", "일"].map((d, i) => (
           <label key={d}>
-            <input
+            <Input
               name="days"
               type="checkbox"
               value={i + 1}
@@ -217,7 +219,7 @@ export function RepeatRuleEditor({
         ))}
       </div>
       <label className="check-label">
-        <input
+        <Input
           type="checkbox"
           name="skip"
           defaultChecked={rule.skip_public_holidays}

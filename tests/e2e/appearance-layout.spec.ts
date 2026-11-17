@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 test("appearance changes preserve editor values and week, survive reload and recover invalid preferences", async ({
   page,
 }) => {

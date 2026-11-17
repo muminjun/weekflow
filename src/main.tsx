@@ -1,3 +1,7 @@
+import { FormFeedback } from "./ui/FormFeedback";
+import { TooltipHost } from "./ui/TooltipHost";
+import { ConfirmationHost } from "./ui/Confirmations";
+import { confirmAction } from "./ui/Confirmations";
 import { userMessage } from "./ui/errors";
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
@@ -63,9 +67,9 @@ function App() {
       return;
     }
     if (
-      !window.confirm(
+      !(await confirmAction(
         "로그아웃하면 이 기기의 미전송 변경과 캐시가 삭제됩니다. 계속할까요?",
-      )
+      ))
     )
       return;
     try {
@@ -121,6 +125,9 @@ createRoot(document.getElementById("root")!).render(
         <HashRouter>
           <PwaUpdate />
           <App />
+          <ConfirmationHost />
+          <TooltipHost />
+          <FormFeedback />
         </HashRouter>
       </QueryClientProvider>
     </ErrorBoundary>

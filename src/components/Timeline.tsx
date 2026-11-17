@@ -1,3 +1,5 @@
+import { confirmAction } from "../ui/Confirmations";
+import { Select } from "../ui/Select";
 import { useRef, useState, useLayoutEffect } from "react";
 import {
   Check,
@@ -122,15 +124,15 @@ export function Timeline({
     );
     if (
       overlaps.length &&
-      !window.confirm(
+      !(await confirmAction(
         `다음 일정과 겹칩니다:\n${overlaps.map((b) => `${titleOf(data, b)} · ${formatInTimeZone(b.start_at, zone, "MM.dd HH:mm")}–${formatInTimeZone(b.end_at, zone, "HH:mm")}`).join("\n")}\n겹쳐서 배치할까요?`,
-      )
+      ))
     )
       return;
     const focus = availability(data, d.date, holidayNames.has(d.date)).focus;
     if (
       !focus.some(([s, e]) => d.start >= s && d.end <= e) &&
-      !window.confirm("집중 가능 시간 밖입니다. 그래도 배치할까요?")
+      !(await confirmAction("집중 가능 시간 밖입니다. 그래도 배치할까요?"))
     )
       return;
     await commit(
@@ -245,7 +247,7 @@ export function Timeline({
         </div>
         <label className="range-select">
           <span className="sr-only">시간표 보기</span>
-          <select
+          <Select
             aria-label="시간표 보기"
             value={mode}
             onChange={(e) => setMode(e.target.value as typeof mode)}
@@ -253,7 +255,7 @@ export function Timeline({
             <option value="fit">화면 맞춤</option>
             <option value="full">전체 24시간 · 상세</option>
             <option value="saved">내 설정 범위 · 상세</option>
-          </select>
+          </Select>
         </label>
         <div className="desktop-view-switch">
           <SegmentedControl
@@ -266,24 +268,19 @@ export function Timeline({
             onChange={setDayView}
           />
         </div>
-      </div>
-      <div className="range-context">
-        <span>
-          점선은 집중 가능 시간 ·{" "}
-          {mode === "fit"
-            ? "보기 전용 범위예요. 저장된 설정은 유지됩니다."
-            : "상세 시간표는 안에서 스크롤하세요."}
-        </span>
-        <button className="agenda-button" onClick={() => setListOpen(true)}>
-          일정 목록 {weekBlocks.length}
-        </button>
-        <button
-          className="outside-button"
-          disabled={!outside.length}
-          onClick={() => setOutsideOpen(true)}
-        >
-          범위 밖 일정 {outside.length}개{outside.length > 0 && " ↗"}
-        </button>
+        <div className="calendar-range-actions">
+          {" "}
+          <button className="agenda-button" onClick={() => setListOpen(true)}>
+            일정 목록 {weekBlocks.length}
+          </button>
+          <button
+            className="outside-button"
+            disabled={!outside.length}
+            onClick={() => setOutsideOpen(true)}
+          >
+            범위 밖 일정 {outside.length}개{outside.length > 0 && " ↗"}
+          </button>
+        </div>
       </div>
       {dayView === "day" && (
         <div className="desktop-day-tabs">
@@ -320,7 +317,7 @@ export function Timeline({
               </div>
               <button
                 className="available-tag"
-                title={`집중 가능 ${a.focusMinutes / 60}시간 / 아직 빈 시간 ${a.freeMinutes / 60}시간`}
+                data-tooltip={`집중 가능 ${a.focusMinutes / 60}시간 / 아직 빈 시간 ${a.freeMinutes / 60}시간`}
                 onClick={() => onCreate(date, -1)}
               >
                 <b>{Math.round((a.focusMinutes / 60) * 10) / 10}h</b> 집중 가능
@@ -472,7 +469,7 @@ export function Timeline({
                         onClick={(ev) => {
                           if (ev.detail === 0) onEdit(b);
                         }}
-                        title={`${titleOf(data, b)} · ${timeLabel(s)}–${timeLabel(e)}${collision ? " · 일정 겹침" : ""}`}
+                        data-tooltip={`${titleOf(data, b)} · ${timeLabel(s)}–${timeLabel(e)}${collision ? " · 일정 겹침" : ""}`}
                         aria-labelledby={`${geometry.height >= 54 ? `time-${date}-${b.id} ` : ""}title-${date}-${b.id}${collision ? ` overlap-${date}-${b.id}` : ""}`}
                         aria-description={`${timeLabel(s)} ${b.state === "done" ? "✓ " : ""}${titleOf(data, b)} · ${timeLabel(s)}–${timeLabel(e)} ${b.state === "done" ? "완료" : ""} ${collision ? "일정 겹침" : ""}`}
                       >
@@ -505,12 +502,12 @@ export function Timeline({
                       <span
                         className="resize-handle top"
                         onPointerDown={(ev) => begin(ev, b, "start")}
-                        title="시작 시간 조절"
+                        data-tooltip="시작 시간 조절"
                       />
                       <span
                         className="resize-handle bottom"
                         onPointerDown={(ev) => begin(ev, b, "end")}
-                        title="종료 시간 조절"
+                        data-tooltip="종료 시간 조절"
                       >
                         <GripHorizontal size={13} />
                       </span>
@@ -581,7 +578,7 @@ export function Timeline({
                 </p>
               </div>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const date = days.find((date) => blockSlice(b, date, zone))!;
                   setRange(rangeAround(blockSlice(b, date, zone)![0]));
                   setMode("fit");
@@ -593,7 +590,7 @@ export function Timeline({
                 이 시간 보기
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   setOutsideOpen(false);
                   setListOpen(false);
                   onEdit(b);

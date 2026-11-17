@@ -1,3 +1,4 @@
+import { confirmAction } from "../ui/Confirmations";
 import { Check, RotateCcw } from "lucide-react";
 import type { Dataset } from "../domain/types";
 import { stats } from "../domain/selectors";
@@ -42,9 +43,9 @@ export function Review({
         {review?.finalized_at ? (
           <button
             className="text-button"
-            onClick={() => {
+            onClick={async () => {
               if (
-                window.confirm(
+                await confirmAction(
                   "현재 주의 데이터로 확정 통계를 다시 계산할까요?",
                 )
               )

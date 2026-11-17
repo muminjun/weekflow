@@ -59,7 +59,7 @@ export function ThemeControls() {
 export function AppearanceMenu() {
   return (
     <details className="appearance-menu">
-      <summary aria-label="외관 바꾸기" title="외관 바꾸기">
+      <summary aria-label="외관 바꾸기" data-tooltip="외관 바꾸기">
         <Palette size={20} />
       </summary>
       <div className="appearance-popover">
