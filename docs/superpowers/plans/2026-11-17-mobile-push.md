@@ -12,7 +12,7 @@ User has authorized implementation/testing/existing main deployment and opted ou
 - [x] Add mobile regression tests for compact header, >=44px touch actions, timeline room, tap creation, sheets and reduced-height editor save.
 - [x] Refine mobile layout and touch interaction, preserve date range/exact geometry/day tracking and all original form values.
 - [x] Run type/lint/unit/E2E/build/secrets, inspect 360/390 mobile and desktop screenshots, review.
-- [ ] Commit/push main, confirm CI/Pages and live/PWA/offline behavior; record precise physical-device limitations.
+- [x] Commit/push main, confirm CI/Pages and live/PWA/offline behavior; record precise physical-device limitations.
 
 User additions during execution:
 - Mobile save must offer native-calendar copy. Implement device-local ICS/share handoff with explicit OS confirmation and no claimed automatic sync; never upload private calendar content to a public URL.

@@ -129,3 +129,11 @@
 - Edge 변경 후 `npm run test:db`의 실제 API/소유권/버전/백업/비인증 함수 경계19개 통과. 스크립트를 먼저 읽고 격리된 임시 계정2개로만 검사했으며, 두 계정 삭제HTTP200과 이메일 제공자 비활성 복구를 확인했다. 실제 사용자 데이터는 변경하지 않았다.
 
 - 첫 CI의 모바일 시간표가450px 기준보다 약1px 부족해 실패했다. 상단 간격을 추가로 줄였으며 기준을 낮추지 않았다. 전체48개 브라우저 검사와 final production/offline 검수를 다시 통과했다.
+
+### 실배포 및 실제 브라우저 Push 확인
+
+- 구현 `0f4b8e0`과 플랫폼 간격 보완 `af2624017b41f74518cddaf88ecf2248d8c5c3b2`를 기존 main에 반영했다. 보완 커밋의 [Quality gates](https://github.com/muminjun/weekflow/actions/runs/44078846500), [Deploy Pages](https://github.com/muminjun/weekflow/actions/runs/44078846484) 모두 성공했다.
+- 실제 URL에 `node scripts/verify-ui.mjs https://muminjun.github.io/weekflow/ live-planning-tools`를 실행했다. PC1366×768/모바일 에뮬레이션390×844에서 루트 넘침 없음, 본문16px/일정14px, SW 캐시 `weekflow-shell-/weekflow/6f464d61e386`, 다크 유지와 오프라인 재실행 통과. `live-planning-tools-*.png`를 직접 열어 시각 검수했다.
+- 별도 새 Chrome 창에서 기존 로그인·저장됨 상태, 작성 중인 편집 폼이 없음을 확인하고 ‘새 버전 열기’를 실행했다. 초기JS `index-Dnv2iPwq.js` 로딩, 본문16px, 루트 세로 넘침 없음, 새 ‘빈 시간 추천’과 기존 코치마크 상태를 확인했다. 다른 창을 새로고침하지 않았다.
+- 실제 계정의 설정 → 알림에서 브라우저/서버 기기 등록과 일정 알림 사용을 확인했다. ‘이 기기 테스트 Push’를 UI에서 눌러 **SW receipt가 돌아왔으며, 이 Mac Chrome에 Push가 도착해 showNotification 요청까지 완료됨**을 확인했다. 서버 접수만 확인한 결과가 아니다. 알림 권한·선호 변경은 하지 않았다.
+- macOS 배너/알림 클릭은 사용자가 직접 확인하지 않았으므로 여전히 미검증이다. 현재 기기의 안내를 펼쳐 두었다. 물리 모바일·Safari/VoiceOver·실제 기기 달력의 최종 추가 역시 미검증이다.
