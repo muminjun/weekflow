@@ -102,3 +102,10 @@
 물리 모바일·실제 OS 키보드·macOS Push 배너/클릭·Safari/VoiceOver·다른 실제 기기 로그인은 여전히 미검증이다. 모바일 캡처는 에뮬레이션이며 브라우저 수신을 OS 배너 성공으로 간주하지 않는다.
 
 - 최종 로컬 production build를 `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ refined-production`로 검사했다. PC/모바일 모두 루트 넘침 없음, 본문16px·일정14px, SW 제어·외관 파일 사전 캐시·다크 선택 유지와 오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/00bec1a716a9`.
+
+### 세부 UI 실배포 확인
+
+- 구현 커밋 `0dde2960bfd2e7117c97e70d562ab20b6587858a`의 [Quality gates](https://github.com/muminjun/weekflow/actions/runs/43989366950)와 [Deploy Pages](https://github.com/muminjun/weekflow/actions/runs/43989366944) 성공.
+- 실제 URL에 `node scripts/verify-ui.mjs https://muminjun.github.io/weekflow/ live-refined` 실행: PC1366×768/모바일 에뮬레이션390×844 모두 본문16px·일정14px, 루트 가로/세로 넘침 없음, SW 제어·외관 파일 사전 캐시 및 다크 선택 유지·오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/00bec1a716a9`, 초기 JS `index-QoTcSbeA.js`로 검증한 빌드와 일치.
+- 별도 새 Chrome 창에서 기존 로그인·저장됨 상태와 열린 편집창이 없음을 확인한 뒤 ‘새 버전 열기’를 눌렀다. 업데이트 후 동일한 선택 주/할 일·블록 수와 저장됨 상태, 09–18 범위, 본문16px, 일정 확장 액션, 루트 넘침 없음 및 코치마크1/5 표시를 확인했다. 첫 안내는 사용자가 볼 수 있게 완료 처리하지 않았다. 실제 계정 데이터 작성/삭제·알림 권한/선호 변경 없음.
+- 실서비스 캡처 `live-refined-desktop.png`, `live-refined-mobile.png`, `live-refined-*-offline.png`를 직접 열어 시각 확인했다. 이 캡처는 명시적인 메모리 체험이며 실제 사용자 데이터/물리 모바일 캡처가 아니다.

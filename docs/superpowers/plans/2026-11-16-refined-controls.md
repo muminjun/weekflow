@@ -9,6 +9,6 @@ User explicitly requests end-to-end implementation and existing Pages deployment
 - [x] Reduce headers and right-panel width, reclaim at least 80px vertical calendar space at 1366×768 without smaller core type; expose panel collapse and wider day focus. Align four palettes, including neutral charcoal dark, to supplied Securities reference.
 - [x] First-run notification setup: primary opt-in action, honest device permission/subscription/preference status, internal notifications available without push. Preserve existing explicit user settings; no silent enable of existing accounts or OS permission requests on load.
 - [x] Run type/lint/unit/E2E/build/secrets, six viewport screenshots and all four palettes, verify pointer timings and updated production offline shell.
-- [ ] Review, commit/push existing main, confirm Quality gates/Pages and actual live new-window UI/SW update.
+- [x] Review, commit/push existing main, confirm Quality gates/Pages and actual live new-window UI/SW update.
 
 - [x] Add first-entry five-step coachmarks, browser-local completion/skip state and Settings replay, as explicitly requested during implementation.
