@@ -120,10 +120,12 @@
 - Push 권한 제스처 순서, 기존 구독의 재등록 실패 보존, 현재 endpoint 테스트, 로컬/서버 구독 차이, iPhone 설치 안내, 표시 요청 접수와 알림 목록 수신 구분, SW receipt, 구독 해제/조회 실패 시 상태 갱신 검사. 실제 서버 Cron 최근5회HTTP200, 실제 계정 알림 사용/10분 전·구독 활성 확인. 미래 일정/마감이 없어 현재 자동 일정 발송 대상은0건이었다.
 - 실제 Mac Chrome permission=granted와 로컬/서버 기기 등록 일치를 확인했다. 로컬 showNotification은 요청을 접수했으나 getNotifications 목록에는 없었다. 현재 기기만 지정한 원격 발송은HTTP200/accepted1, 다른 기기 endpoint는400/NO_SUBSCRIPTION, 비인증 요청401을 확인했다. 이 사실만으로 OS 배너 수신을 성공으로 간주하지 않는다.
 - check:edge3개 함수 통과. push-subscription 함수만 기존 프로젝트에 배포했다. DB/Edge dispatch/Cron/키/RLS/사용자 알림 선호는 바꾸지 않았다. 서버는10대 제한에서도 동일 기기 재등록을 허용한다.
-- production build와 check:secrets 통과(221개 소스). 초기JS616.95kB/gzip184.92kB, Planner266.11kB/gzip80.74kB, CSS48.98kB/gzip10.42kB. 기존 청크 크기/초기 외관 public script 경고는 남는다.
-- 최종 local production 검수: `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ planning-tools-production` PC/모바일 루트 넘침 없음, 본문16px/일정14px, SW·외관 사전 캐시·다크 유지·오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/cb4d1848cfe3`.
+- production build와 check:secrets 통과(225개 소스). 초기JS616.95kB/gzip184.92kB, Planner266.11kB/gzip80.74kB, CSS49.07kB/gzip10.43kB. 기존 청크 크기/초기 외관 public script 경고는 남는다.
+- 최종 local production 검수: `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ planning-tools-production` PC/모바일 루트 넘침 없음, 본문16px/일정14px, SW·외관 사전 캐시·다크 유지·오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/6f464d61e386`.
 - 주요 캡처를 직접 열어 검수했다: `mobile-compact-editor.png`, `mobile-calendar-copy.png`, `desktop-hover-create.png`, `tools-<desktop|mobile>-suggestions.png`, `planning-tools-production-*.png`와 갱신된viewport/테마 캡처.
 
 기존 실제 기기 미검증 범위(macOS 배너/클릭, 물리 모바일 Push/PWA/키보드/달력 추가, Safari/VoiceOver)는 유지한다. 실제 사용자 일정/할 일 데이터는 검수 목적으로 작성·삭제하지 않았다. 원격 Push 테스트는 테스트 알림 감사 기록을 만든다.
 
 - Edge 변경 후 `npm run test:db`의 실제 API/소유권/버전/백업/비인증 함수 경계19개 통과. 스크립트를 먼저 읽고 격리된 임시 계정2개로만 검사했으며, 두 계정 삭제HTTP200과 이메일 제공자 비활성 복구를 확인했다. 실제 사용자 데이터는 변경하지 않았다.
+
+- 첫 CI의 모바일 시간표가450px 기준보다 약1px 부족해 실패했다. 상단 간격을 추가로 줄였으며 기준을 낮추지 않았다. 전체48개 브라우저 검사와 final production/offline 검수를 다시 통과했다.

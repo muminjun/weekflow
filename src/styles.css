@@ -3340,3 +3340,12 @@ input[type="radio"]:disabled {
   background: var(--selected);
   border-color: var(--accent);
 }
+@media (max-width: 767px) {
+  /* Leave room for platform font metrics while keeping the day canvas >=450px. */
+  .planner-heading {
+    padding-block: 2px;
+  }
+  .week-caption > span {
+    margin-top: 2px;
+  }
+}
