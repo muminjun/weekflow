@@ -13,6 +13,9 @@ export function TooltipHost() {
       setTooltip(null);
     };
     const show = (event: Event) => {
+      if (window.matchMedia?.("(hover: none)").matches) return;
+      if (event instanceof PointerEvent && event.pointerType === "touch")
+        return;
       clearTimeout(timer);
       const el =
         event.target instanceof Element

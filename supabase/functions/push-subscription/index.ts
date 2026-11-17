@@ -29,8 +29,13 @@ Deno.serve(async (req) => {
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id);
       if (countError) throw countError;
-      if ((count ?? 0) >= 10)
-        return response(req, { error: "DEVICE_LIMIT" }, 429);
+      if ((count ?? 0) >= 10) {
+        const { data: existing, error: existingError } = await client
+          .from("push_subscriptions").select("id")
+          .eq("user_id", user.id).eq("endpoint", s.endpoint).maybeSingle();
+        if (existingError) throw existingError;
+        if (!existing) return response(req, { error: "DEVICE_LIMIT" }, 429);
+      }
       const { error } = await client.from("push_subscriptions").upsert(
         {
           user_id: user.id,
@@ -56,11 +61,17 @@ Deno.serve(async (req) => {
       return response(req, { ok: true });
     }
     if (body.action === "test") {
-      const { data: subscriptions, error } = await client
+      let subscriptionQuery = client
         .from("push_subscriptions")
         .select("*")
         .eq("user_id", user.id)
         .eq("is_active", true);
+      if (body.endpoint !== undefined) {
+        if (typeof body.endpoint !== "string" || !validEndpoint(body.endpoint))
+          return response(req, { error: "INVALID_ENDPOINT" }, 400);
+        subscriptionQuery = subscriptionQuery.eq("endpoint", body.endpoint);
+      }
+      const { data: subscriptions, error } = await subscriptionQuery;
       if (error) throw error;
       if (!subscriptions?.length)
         return response(req, { error: "NO_SUBSCRIPTION" }, 400);
@@ -82,6 +93,7 @@ Deno.serve(async (req) => {
         try {
           await sendPush(s, {
             title: "WEEKFLOW 테스트 알림",
+            tag: "weekflow-push-test",
             body: "이 알림이 보이면 실제 Push 수신이 확인된 것입니다.",
             url: "https://muminjun.github.io/weekflow/#/planner",
           });

@@ -1,3 +1,4 @@
+import { shouldAskCalendar, setAskCalendar } from "../ui/calendarPreference";
 import { NotificationSetup } from "./NotificationSetup";
 import { confirmAction, promptAction } from "../ui/Confirmations";
 import { Select } from "../ui/Select";
@@ -35,6 +36,7 @@ export function Settings({
   onReload: () => Promise<unknown>;
   preview: boolean;
 }) {
+  const [askCalendar, setAskCalendarState] = useState(shouldAskCalendar);
   const [tab, setTab] = useState("기본");
   const [notificationEnabled, setNotificationEnabled] = useState(
     data.notification_preferences.enabled,
@@ -161,6 +163,21 @@ export function Settings({
               }
             }}
           >
+            <label className="check-label">
+              <Input
+                type="checkbox"
+                checked={askCalendar}
+                onChange={(e) => {
+                  setAskCalendarState(e.target.checked);
+                  setAskCalendar(e.target.checked);
+                }}
+              />
+              모바일 일정 저장 후 기기 달력 추가 안내
+            </label>
+            <p className="helper-text">
+              이 브라우저에 기억해요. 달력으로 복사한 일정은 WEEKFLOW와 자동
+              동기화되지 않아요.
+            </p>
             <div className="form-pair">
               <label>
                 시간대
@@ -570,22 +587,18 @@ export function Settings({
               <button className="primary">알림 설정 저장</button>
             </form>
             <div className="secondary-actions">
-              {(["test", "unsubscribe"] as const).map((action, i) => (
+              {(["unsubscribe"] as const).map((action) => (
                 <button
                   key={action}
                   disabled={preview}
                   onClick={() =>
                     void run(
                       () => pushAction(action),
-                      [
-                        "서버에서 테스트 발송을 요청했습니다. 실제 기기에서 수신을 확인하세요.",
-                        "기기 구독을 해제했습니다.",
-                      ][i],
+                      "기기 구독을 해제했습니다.",
                     )
                   }
                 >
-                  <Bell size={14} />
-                  {["테스트 Push 보내기", "이 기기 구독 해제"][i]}
+                  <Bell size={14} />이 기기 구독 해제
                 </button>
               ))}
             </div>

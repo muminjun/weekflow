@@ -1,3 +1,4 @@
+import { useVisualViewport } from "../ui/useVisualViewport";
 import { AppearanceMenu } from "../ui/ThemeControls";
 import * as Dialog from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -13,6 +14,7 @@ export function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
+  const viewportStyle = useVisualViewport();
   const opener = useRef(document.activeElement as HTMLElement | null);
   return (
     <Dialog.Root
@@ -28,6 +30,7 @@ export function Modal({
             e.preventDefault();
             if (opener.current?.isConnected) opener.current.focus();
           }}
+          style={viewportStyle}
           className={`modal ${wide ? "wide" : ""}`}
         >
           <div className="modal-heading">

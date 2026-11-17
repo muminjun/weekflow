@@ -16,11 +16,13 @@ export function SidePanel({
   week,
   commit,
   onTask,
+  onSuggest,
 }: {
   data: Dataset;
   week: string;
   commit: Commit;
   onTask: (t?: Task, w?: WeekTask) => void;
+  onSuggest?: () => void;
 }) {
   const [tab, setTab] = useState<"todo" | "goals" | "deadlines">("todo");
   const [goalEdit, setGoalEdit] = useState<string | null>(null);
@@ -244,6 +246,11 @@ export function SidePanel({
           <p className="panel-note">
             할 일을 끌어 배치하거나 눌러 시간을 선택하세요.
           </p>
+          {onSuggest && (
+            <button className="suggestion-entry" onClick={onSuggest}>
+              빈 시간 추천 <ArrowUpRight size={16} />
+            </button>
+          )}
           <div className="todo-list">
             {wt.map((w) => {
               const t = data.tasks.find((t) => t.id === w.task_id);

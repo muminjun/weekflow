@@ -109,3 +109,21 @@
 - 실제 URL에 `node scripts/verify-ui.mjs https://muminjun.github.io/weekflow/ live-refined` 실행: PC1366×768/모바일 에뮬레이션390×844 모두 본문16px·일정14px, 루트 가로/세로 넘침 없음, SW 제어·외관 파일 사전 캐시 및 다크 선택 유지·오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/00bec1a716a9`, 초기 JS `index-QoTcSbeA.js`로 검증한 빌드와 일치.
 - 별도 새 Chrome 창에서 기존 로그인·저장됨 상태와 열린 편집창이 없음을 확인한 뒤 ‘새 버전 열기’를 눌렀다. 업데이트 후 동일한 선택 주/할 일·블록 수와 저장됨 상태, 09–18 범위, 본문16px, 일정 확장 액션, 루트 넘침 없음 및 코치마크1/5 표시를 확인했다. 첫 안내는 사용자가 볼 수 있게 완료 처리하지 않았다. 실제 계정 데이터 작성/삭제·알림 권한/선호 변경 없음.
 - 실서비스 캡처 `live-refined-desktop.png`, `live-refined-mobile.png`, `live-refined-*-offline.png`를 직접 열어 시각 확인했다. 이 캡처는 명시적인 메모리 체험이며 실제 사용자 데이터/물리 모바일 캡처가 아니다.
+
+## 2026-11-17 모바일·입력·계획 도구와 Push 진단
+
+- typecheck/lint 통과. Vitest67개 통과(기존 PostgreSQL17개 포함). Playwright48개 통과/8개 제외: 모바일 포인터 전용2개와 데스크톱 면적1개, 새 PC 전용 호버/범위 드래그와 모바일 전용 터치/키보드/달력 전달의 반대 프로젝트 제외다. 해당 환경의 실제 경로는 각각 실행했다.
+- 6개 viewport와4테마·큰 글자·포털·axe serious/critical 회귀 유지. 360×800 기본 시간표450px 이상, 주요44px 터치 영역, 입력16px·44px 기본 높이, visualViewport440px 키보드 모사에서 모달/저장 접근 확인.
+- PC12:00 호버→12–13 프리셋,12:08 좌표→12:15 프리셋,90분 드래그→12–13:30, 모바일12시 터치, 기존15분 블록 이동/시작·끝 리사이즈/Undo 검증. pointerdown 소수 좌표와 click 정수 좌표의 차이를 재현해 화면 프리셋과 입력값이 일치하도록 고쳤다.
+- 검색·오늘 필터/시간 이동, 단축키의 모달 가드, 미배치 Todo 추천→실제 연결 편집/저장, 가용/점유/휴일/수동 설정 반영과 지난 시간 재검증 테스트. 추천 열린 뒤 시간이 지난 경우 저장을 진행하지 않고 갱신한다.
+- 모바일 저장 후 기기 달력 복사 확인, ICS 다운로드의 실제 제목·UTC 시작/종료·UID·escaping·UTF-8 접기, 브라우저별 묻지 않기와 설정 복구 경로 검사. 실제 OS 달력의 추가 완료는 미검증이며 웹의 파일/공유 전달을 자동 달력 쓰기로 보고하지 않는다.
+- Push 권한 제스처 순서, 기존 구독의 재등록 실패 보존, 현재 endpoint 테스트, 로컬/서버 구독 차이, iPhone 설치 안내, 표시 요청 접수와 알림 목록 수신 구분, SW receipt, 구독 해제/조회 실패 시 상태 갱신 검사. 실제 서버 Cron 최근5회HTTP200, 실제 계정 알림 사용/10분 전·구독 활성 확인. 미래 일정/마감이 없어 현재 자동 일정 발송 대상은0건이었다.
+- 실제 Mac Chrome permission=granted와 로컬/서버 기기 등록 일치를 확인했다. 로컬 showNotification은 요청을 접수했으나 getNotifications 목록에는 없었다. 현재 기기만 지정한 원격 발송은HTTP200/accepted1, 다른 기기 endpoint는400/NO_SUBSCRIPTION, 비인증 요청401을 확인했다. 이 사실만으로 OS 배너 수신을 성공으로 간주하지 않는다.
+- check:edge3개 함수 통과. push-subscription 함수만 기존 프로젝트에 배포했다. DB/Edge dispatch/Cron/키/RLS/사용자 알림 선호는 바꾸지 않았다. 서버는10대 제한에서도 동일 기기 재등록을 허용한다.
+- production build와 check:secrets 통과(221개 소스). 초기JS616.95kB/gzip184.92kB, Planner266.11kB/gzip80.74kB, CSS48.98kB/gzip10.42kB. 기존 청크 크기/초기 외관 public script 경고는 남는다.
+- 최종 local production 검수: `node scripts/verify-ui.mjs http://127.0.0.1:4174/weekflow/ planning-tools-production` PC/모바일 루트 넘침 없음, 본문16px/일정14px, SW·외관 사전 캐시·다크 유지·오프라인 재실행 통과. 캐시 `weekflow-shell-/weekflow/cb4d1848cfe3`.
+- 주요 캡처를 직접 열어 검수했다: `mobile-compact-editor.png`, `mobile-calendar-copy.png`, `desktop-hover-create.png`, `tools-<desktop|mobile>-suggestions.png`, `planning-tools-production-*.png`와 갱신된viewport/테마 캡처.
+
+기존 실제 기기 미검증 범위(macOS 배너/클릭, 물리 모바일 Push/PWA/키보드/달력 추가, Safari/VoiceOver)는 유지한다. 실제 사용자 일정/할 일 데이터는 검수 목적으로 작성·삭제하지 않았다. 원격 Push 테스트는 테스트 알림 감사 기록을 만든다.
+
+- Edge 변경 후 `npm run test:db`의 실제 API/소유권/버전/백업/비인증 함수 경계19개 통과. 스크립트를 먼저 읽고 격리된 임시 계정2개로만 검사했으며, 두 계정 삭제HTTP200과 이메일 제공자 비활성 복구를 확인했다. 실제 사용자 데이터는 변경하지 않았다.

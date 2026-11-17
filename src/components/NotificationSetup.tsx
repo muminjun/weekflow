@@ -2,6 +2,13 @@ import { useEffect, useState } from "react";
 import { Bell, BellOff, CheckCircle2 } from "lucide-react";
 import type { Dataset } from "../domain/types";
 import type { Commit } from "./Editors";
+import {
+  getPushStatus,
+  localNotificationTest,
+  watchTestPush,
+  clearTestPush,
+  type PushStatus,
+} from "../data/pushStatus";
 import { pushAction } from "../data/push";
 import { enablePlannerNotifications } from "../ui/notificationSetup";
 import { userMessage } from "../ui/errors";
@@ -19,41 +26,42 @@ export function NotificationSetup({
   onComplete?: () => void;
   onEnabled?: () => void;
 }) {
+  const [device, setDevice] = useState<PushStatus | null>(null);
   const [status, setStatus] = useState("기기 상태 확인 중…");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    const refresh = () => {
+      setDevice(null);
+      setStatus("기기 상태 확인 중…");
+      setRevision((v) => v + 1);
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("weekflow:push-status", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("weekflow:push-status", refresh);
+    };
+  }, []);
+  useEffect(() => {
     let active = true;
     (async () => {
       if (preview) return "체험에서는 기기에 알림을 등록하지 않아요.";
-      if (
-        !("Notification" in window) ||
-        !("serviceWorker" in navigator) ||
-        !("PushManager" in window)
-      )
-        return "이 브라우저에서는 앱 내부 알림을 사용할 수 있어요.";
-      const permission = Notification.permission;
-      if (permission === "denied")
-        return "브라우저에서 알림이 차단되어 있어요. 사이트 설정에서 허용해 주세요.";
-      const registration = await navigator.serviceWorker.getRegistration(
-        import.meta.env.BASE_URL,
-      );
-      const subscription = await registration?.pushManager.getSubscription();
-      return subscription && permission === "granted"
-        ? data.notification_preferences.enabled
-          ? "이 기기 등록 완료 · 일정 알림 사용 중"
-          : "이 기기 등록 완료 · 일정 알림 사용 설정이 필요해요."
-        : "알림을 켜면 이 기기에 시작 시간과 마감 알림을 보내드려요.";
+      const next = await getPushStatus();
+      if (active) setDevice(next);
+      return next.message;
     })()
       .then((value) => {
         if (active) setStatus(value);
       })
       .catch(() => {
-        if (active)
+        if (active) {
+          setDevice(null);
           setStatus(
             "기기 등록 상태를 확인하지 못했어요. 연결 후 다시 시도해 주세요.",
           );
+        }
       });
     return () => {
       active = false;
@@ -79,6 +87,42 @@ export function NotificationSetup({
       setBusy(false);
     }
   }
+  async function testDelivery(local: boolean) {
+    setBusy(true);
+    setMessage(
+      local
+        ? "기기 표시 경로를 확인하고 있어요…"
+        : "이 기기로 발송하고 수신을 확인하고 있어요…",
+    );
+    try {
+      let received: boolean;
+      if (local) received = await localNotificationTest();
+      else {
+        await clearTestPush();
+        const observation = watchTestPush();
+        try {
+          await pushAction("test");
+          observation.accepted();
+          received = await observation.result;
+        } finally {
+          observation.stop();
+        }
+      }
+      setMessage(
+        received
+          ? local
+            ? "브라우저 알림 목록에서 표시 요청을 확인했어요. 실제 배너가 보이지 않으면 아래 OS 알림 설정을 확인해 주세요."
+            : "이 브라우저에 Push가 도착해 알림 표시를 요청했어요. 배너가 보이지 않으면 OS 알림 허용과 집중 모드를 확인해 주세요."
+          : local
+            ? "브라우저가 표시 요청을 접수했지만 알림 목록에서는 확인되지 않았어요. OS 알림 허용과 집중 모드를 확인해 주세요."
+            : "서버 발송은 접수됐지만 이 브라우저의 수신은 아직 확인되지 않았어요. 기기 표시 테스트와 OS 설정을 확인해 주세요.",
+      );
+    } catch (e) {
+      setMessage(userMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <section className="notification-setup">
       <div className="notification-setup-icon">
@@ -90,8 +134,7 @@ export function NotificationSetup({
         </h3>
         <p>{status}</p>
         <p className="helper-text">
-          브라우저 권한과 이 기기 등록이 필요해요. 앱 내부 알림은 항상 확인할 수
-          있어요.
+          일정 알림은 브라우저 권한·기기 등록·알림 사용 설정이 모두 필요해요.
         </p>
       </div>
       <button
@@ -107,6 +150,76 @@ export function NotificationSetup({
             ? "알림 켜고 시작"
             : "이 기기 알림 켜기"}
       </button>
+      {!onComplete && (
+        <div className="push-diagnostics">
+          <ul>
+            <li>
+              기기 연결{" "}
+              <strong>
+                {device?.state === "ready" ? "확인됨" : "확인 필요"}
+              </strong>
+            </li>
+            <li>
+              일정 알림{" "}
+              <strong>
+                {data.notification_preferences.enabled
+                  ? "사용 중"
+                  : "꺼져 있음 · 아래에서 켜고 저장"}
+              </strong>
+            </li>
+          </ul>
+          <p>
+            일정 시작·마감 등 알림 대상이 있어야 자동 발송돼요. 5분마다
+            확인하므로 최대 약 5분 늦을 수 있어요. 방해금지 시간에는 보류됩니다.
+          </p>
+          <div className="push-test-actions">
+            <button
+              type="button"
+              disabled={preview || busy || device?.state !== "ready"}
+              onClick={() => void testDelivery(false)}
+            >
+              이 기기 테스트 Push
+            </button>
+            <button
+              type="button"
+              disabled={
+                preview ||
+                busy ||
+                !["ready", "unregistered"].includes(device?.state ?? "")
+              }
+              onClick={() => void testDelivery(true)}
+            >
+              기기 표시 테스트
+            </button>
+            <button
+              type="button"
+              disabled={busy || preview}
+              onClick={() => {
+                setDevice(null);
+                setRevision((v) => v + 1);
+              }}
+            >
+              상태 다시 확인
+            </button>
+          </div>
+          <details>
+            <summary>발송됐는데 배너가 보이지 않나요?</summary>
+            <p>
+              Mac: 시스템 설정 → 알림 → Google Chrome(또는 설치 앱)에서 알림
+              허용과 배너를 확인하고 집중 모드도 확인해 주세요.
+            </p>
+            <p>
+              아이폰: 홈 화면에 설치한 WEEKFLOW로 열고 설정 → 알림 → WEEKFLOW를
+              확인하세요. Android는 설정 → 앱 → 브라우저/설치 앱 → 알림을 확인해
+              주세요.
+            </p>
+            <p>
+              웹에서는 OS 알림 허용·배너·집중 모드를 직접 확인하거나 변경할 수
+              없어요. 브라우저 수신 확인도 실제 배너 표시와는 별개예요.
+            </p>
+          </details>
+        </div>
+      )}
       {message && (
         <p className="helper-text" role="status">
           {message}

@@ -1,3 +1,7 @@
+import { Recommendations } from "./Recommendations";
+import { CalendarExport } from "./CalendarExport";
+import type { CalendarEvent } from "../domain/calendar";
+import { shouldAskCalendar } from "../ui/calendarPreference";
 import { Coachmarks } from "./Coachmarks";
 import { FirstWeekSetup } from "./NotificationSetup";
 import { confirmAction } from "../ui/Confirmations";
@@ -23,6 +27,7 @@ import {
 import { parseISO, format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
 import type { Block, Change, Dataset, Task, WeekTask } from "../domain/types";
+import { blockSlice } from "../domain/selectors";
 import { addDays, today, weekOf } from "../domain/planner";
 import { Timeline } from "./Timeline";
 import { SidePanel } from "./SidePanel";
@@ -44,7 +49,14 @@ const subscribeMobile = (cb: () => void) => {
 };
 type Editor =
   | { type: "task"; task?: Task; wt?: WeekTask }
-  | { type: "block"; block?: Block; date: string; minute: number; wt?: string }
+  | {
+      type: "block";
+      block?: Block;
+      date: string;
+      minute: number;
+      wt?: string;
+      duration?: number;
+    }
   | { type: "availability"; date: string }
   | { type: "settings" }
   | { type: "review" }
@@ -75,12 +87,17 @@ export function Planner({
       Math.max(0, Number(params.get("day") ?? (new Date().getDay() + 6) % 7)),
     ),
   );
+  const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(
+    null,
+  );
   const [editor, setEditor] = useState<Editor>(null);
   const mobile = useSyncExternalStore(
     subscribeMobile,
     () => mobileQuery().matches,
   );
   const [sheet, setSheet] = useState(false);
+  const [recommendOpen, setRecommendOpen] = useState(false);
+  const [agendaOpen, setAgendaOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     const replay = () => {
@@ -121,20 +138,39 @@ export function Planner({
   const ruleKey = data.recurrence_rules
     .map((r) => r.id + ":" + r.version)
     .join();
-  const nav = (date: string) => {
-    setParams({ week: weekOf(date) });
+  const nav = (date: string, focusDay = false) => {
+    const day = focusDay
+      ? (new Date(date + "T12:00:00").getDay() + 6) % 7
+      : mobileDay;
+    setMobileDay(day);
+    setParams({ week: weekOf(date), day: String(day) });
     setEditor(null);
   };
   const openTask = (task?: Task, wt?: WeekTask) =>
     setEditor({ type: "task", task, wt });
-  const create = (date: string, minute: number, wt?: string) =>
+  const create = (date: string, minute: number, wt?: string, duration = 60) =>
     setEditor(
       minute < 0
         ? { type: "availability", date }
-        : { type: "block", date, minute, wt },
+        : { type: "block", date, minute, wt, duration },
     );
   useEffect(() => {
     function key(e: KeyboardEvent) {
+      if (editor || sheet || agendaOpen || recommendOpen || calendarEvent)
+        return;
+      if (
+        (e.key === "/" ||
+          ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) &&
+        !editor &&
+        !sheet &&
+        !(e.target as HTMLElement).closest(
+          "input,textarea,select,[contenteditable]",
+        )
+      ) {
+        e.preventDefault();
+        setAgendaOpen(true);
+        return;
+      }
       if (
         e.key.toLowerCase() === "n" &&
         !editor &&
@@ -148,7 +184,7 @@ export function Planner({
     }
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [editor]);
+  }, [editor, sheet, agendaOpen, recommendOpen, calendarEvent]);
   useEffect(() => {
     if (
       preview ||
@@ -251,9 +287,13 @@ export function Planner({
         </a>
         <span className="brand-tagline">한 주를 내 흐름대로</span>
         <div className="header-spacer" />
-        <span className={`sync-status ${preview ? "preview-status" : ""}`}>
+        <span
+          className={`sync-status ${preview ? "preview-status" : ""}`}
+          data-tooltip={store.status}
+          role="status"
+        >
           <span />
-          {store.status}
+          <span className="sync-label">{store.status}</span>
         </span>
         <button
           className="icon-button"
@@ -318,10 +358,19 @@ export function Planner({
       <main className="planner-paper">
         <div className="planner-heading">
           <div className="week-caption">
-            <h1>이번 주, 나의 흐름</h1>
+            <h1 aria-label="이번 주, 나의 흐름">
+              <span className="desktop-title">이번 주, 나의 흐름</span>
+              <span className="mobile-title">이번 주</span>
+            </h1>
             <span>
-              {format(parseISO(week), "yyyy년 M월 d일")} –{" "}
-              {format(parseISO(addDays(week, 6)), "M월 d일")}
+              <span className="desktop-title">
+                {format(parseISO(week), "yyyy년 M월 d일")} –{" "}
+                {format(parseISO(addDays(week, 6)), "M월 d일")}
+              </span>
+              <span className="mobile-title">
+                {format(parseISO(week), "M월 d일")} –{" "}
+                {format(parseISO(addDays(week, 6)), "M월 d일")}
+              </span>
             </span>
           </div>
           <div className="workspace-actions">
@@ -334,7 +383,7 @@ export function Planner({
               </IconButton>
               <Button
                 className="today-button"
-                onClick={() => nav(today(data.profile.timezone))}
+                onClick={() => nav(today(data.profile.timezone), true)}
               >
                 오늘
               </Button>
@@ -348,7 +397,7 @@ export function Planner({
                 value={week}
                 onChange={(e) => {
                   if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value))
-                    nav(e.target.value);
+                    nav(e.target.value, true);
                 }}
               />
             </div>
@@ -432,8 +481,11 @@ export function Planner({
           <Timeline
             data={data}
             days={days}
+            listOpen={agendaOpen}
+            setListOpen={setAgendaOpen}
             mobileDay={mobileDay}
             onDayChange={setMobileDay}
+            onNavigate={(date) => nav(date, true)}
             holidayNames={holidayNames}
             holidayKnown={holidays.data?.known ?? false}
             onEdit={(block) =>
@@ -454,6 +506,10 @@ export function Planner({
                 week={week}
                 commit={store.commit}
                 onTask={openTask}
+                onSuggest={() => {
+                  setSheet(false);
+                  setRecommendOpen(true);
+                }}
               />
             </div>
           )}
@@ -479,6 +535,14 @@ export function Planner({
           </span>
           <span className="sr-only">열기</span>
         </button>
+        <button className="mobile-agenda" onClick={() => setAgendaOpen(true)}>
+          일정 목록{" "}
+          {
+            data.time_blocks.filter((b) =>
+              days.some((date) => blockSlice(b, date, data.profile.timezone)),
+            ).length
+          }
+        </button>
         <button
           aria-label="주간 회고 열기"
           onClick={() => setEditor({ type: "review" })}
@@ -493,6 +557,10 @@ export function Planner({
             week={week}
             commit={store.commit}
             onTask={openTask}
+            onSuggest={() => {
+              setSheet(false);
+              setRecommendOpen(true);
+            }}
           />
         </Modal>
       )}
@@ -507,15 +575,22 @@ export function Planner({
         </Modal>
       )}
       <Coachmarks
-        enabled={!editor && !sheet}
+        enabled={
+          !editor && !sheet && !agendaOpen && !calendarEvent && !recommendOpen
+        }
         autoStart={data.profile.onboarding_completed}
       />
-      {store.undo && (
-        <button className="undo-toast" onClick={() => void store.undo?.()}>
-          <Undo2 size={16} />
-          실행 취소
-        </button>
-      )}
+      {store.undo &&
+        !editor &&
+        !sheet &&
+        !agendaOpen &&
+        !recommendOpen &&
+        !calendarEvent && (
+          <button className="undo-toast" onClick={() => void store.undo?.()}>
+            <Undo2 size={16} />
+            실행 취소
+          </button>
+        )}
       {editor?.type === "task" && (
         <TaskEditor
           data={data}
@@ -527,15 +602,42 @@ export function Planner({
           onPlace={(id) => create(days[mobileDay], 540, id)}
         />
       )}
+      {recommendOpen && (
+        <Recommendations
+          data={data}
+          week={week}
+          holidays={new Set(holidayNames.keys())}
+          known={holidays.data?.known ?? false}
+          onClose={() => setRecommendOpen(false)}
+          onPlace={(id, date, minute, duration) => {
+            setRecommendOpen(false);
+            nav(date, true);
+            create(date, minute, id, duration);
+          }}
+        />
+      )}
+      {calendarEvent && (
+        <CalendarExport
+          event={calendarEvent}
+          onClose={() => setCalendarEvent(null)}
+        />
+      )}
       {editor?.type === "block" && (
         <BlockEditor
           data={data}
           block={editor.block}
           date={editor.date}
           minute={editor.minute}
+          duration={editor.duration}
           weekTaskId={editor.wt}
           commit={store.commit}
           onClose={() => setEditor(null)}
+          onCreated={(event) => {
+            if (mobile && shouldAskCalendar()) {
+              setSheet(false);
+              setCalendarEvent(event);
+            }
+          }}
           holiday={holidayNames.has(editor.date)}
         />
       )}

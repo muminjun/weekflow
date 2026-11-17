@@ -1,4 +1,5 @@
 import { confirmAction } from "../ui/Confirmations";
+import { Input } from "../ui/Input";
 import { Select } from "../ui/Select";
 import { useRef, useState, useLayoutEffect } from "react";
 import {
@@ -36,12 +37,20 @@ import { IconButton, SegmentedControl } from "../ui/Controls";
 interface Props {
   data: Dataset;
   days: string[];
+  listOpen: boolean;
+  setListOpen: (open: boolean) => void;
   mobileDay: number;
   onDayChange: (day: number) => void;
+  onNavigate: (date: string) => void;
   holidayNames: Map<string, string[]>;
   holidayKnown: boolean;
   onEdit: (b: Block) => void;
-  onCreate: (date: string, minute: number, weekTaskId?: string) => void;
+  onCreate: (
+    date: string,
+    minute: number,
+    weekTaskId?: string,
+    duration?: number,
+  ) => void;
   commit: (c: Change[], ack?: boolean) => Promise<void>;
 }
 interface Drag {
@@ -59,19 +68,42 @@ export function Timeline({
   data,
   days,
   mobileDay,
+  listOpen,
+  setListOpen,
   onDayChange,
+  onNavigate,
   holidayNames,
   holidayKnown,
   onEdit,
   onCreate,
   commit,
 }: Props) {
+  const selectionRef = useRef<{
+    date: string;
+    anchor: number;
+    start: number;
+    end: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const [selection, setSelection] = useState<{
+    date: string;
+    start: number;
+    end: number;
+  } | null>(null);
+  const [search, setSearch] = useState("");
+  const [agendaScope, setAgendaScope] = useState<"week" | "today" | "all">(
+    "week",
+  );
   const dragRef = useRef<Drag | null>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ date: string; minute: number } | null>(
+    null,
+  );
   const [drag, setDrag] = useState<Drag | null>(null);
   const [mode, setMode] = useState<"fit" | "saved" | "full">("fit");
   const [range, setRange] = useState<[number, number]>([540, 1080]);
   const [outsideOpen, setOutsideOpen] = useState(false);
-  const [listOpen, setListOpen] = useState(false);
   const [dayView, setDayView] = useState<"week" | "day">("week");
   const viewport = useRef<HTMLDivElement>(null);
   const [availableHeight, setAvailableHeight] = useState(450);
@@ -107,6 +139,41 @@ export function Timeline({
         return slice && (slice[0] < from || slice[1] > to);
       }),
   );
+  const agendaBlocks = data.time_blocks
+    .filter((b) => {
+      const inScope =
+        agendaScope === "all" ||
+        (agendaScope === "today"
+          ? !!blockSlice(b, today(zone), zone)
+          : days.some((date) => blockSlice(b, date, zone)));
+      return (
+        inScope &&
+        `${titleOf(data, b)} ${b.event_note}`
+          .toLocaleLowerCase()
+          .includes(search.trim().toLocaleLowerCase())
+      );
+    })
+    .sort((a, b) => a.start_at.localeCompare(b.start_at));
+  function createSelection(date: string, minute: number) {
+    const selected = selectionRef.current;
+    selectionRef.current = null;
+    setSelection(null);
+    setHover(null);
+    touchStart.current = null;
+    if (selected?.date === date && selected.moved)
+      requestAnimationFrame(() =>
+        onCreate(
+          date,
+          selected.start,
+          undefined,
+          selected.end - selected.start,
+        ),
+      );
+    else
+      requestAnimationFrame(() =>
+        onCreate(date, selected?.date === date ? selected.anchor : minute),
+      );
+  }
   function shiftRange(delta: number) {
     const start = Math.max(0, Math.min(900, from + delta));
     setRange([start, start + 540]);
@@ -184,6 +251,7 @@ export function Timeline({
   }
   function begin(e: React.PointerEvent, b: Block, mode: Drag["mode"]) {
     if (e.button !== 0 || e.pointerType === "touch") return;
+    setHover(null);
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -361,6 +429,17 @@ export function Timeline({
               .filter((b) => b.state !== "skipped")
               .map((b) => ({ b, interval: blockSlice(b, date, zone) }))
               .filter((x) => x.interval);
+            const hoveredMinute = hover?.date === date ? hover.minute : null;
+            const hoverGeometry =
+              hoveredMinute === null
+                ? null
+                : clippedGeometry(
+                    hoveredMinute,
+                    hoveredMinute + 60,
+                    from,
+                    to,
+                    scale,
+                  );
             const lanes = overlapLanes(
               slices.map((x) => ({
                 id: x.b.id,
@@ -373,17 +452,118 @@ export function Timeline({
                 key={date}
                 data-day={date}
                 className={`day-column day-${i} ${i === mobileDay ? "mobile-selected" : ""} ${i > 4 ? "weekend" : ""}`}
-                onDoubleClick={(e) => {
-                  if ((e.target as HTMLElement).closest(".time-block")) return;
+                onPointerMove={(e) => {
+                  if (e.pointerType === "touch" || dragRef.current) return;
                   const y =
                     e.clientY - e.currentTarget.getBoundingClientRect().top;
-                  onCreate(
+                  const minute = Math.max(
+                    from,
+                    Math.min(to - 15, snap(from + (y * 60) / scale)),
+                  );
+                  const selected = selectionRef.current;
+                  if (
+                    selected?.date === date &&
+                    (selected.moved || Math.abs(e.clientY - selected.y) > 5)
+                  ) {
+                    const endpoint = Math.max(
+                      from,
+                      Math.min(to, snap(from + (y * 60) / scale)),
+                    );
+                    selected.start = Math.min(selected.anchor, endpoint);
+                    selected.end = Math.max(
+                      selected.start + 15,
+                      Math.max(selected.anchor, endpoint),
+                    );
+                    selected.moved = true;
+                    setSelection({ ...selected });
+                    setHover(null);
+                    return;
+                  }
+                  if ((e.target as HTMLElement).closest(".time-block")) {
+                    setHover(null);
+                    return;
+                  }
+                  setHover({ date, minute });
+                }}
+                onPointerLeave={() => setHover(null)}
+                onPointerDown={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (
+                    target.closest(".time-block") ||
+                    target.closest("button:not(.timeline-create-preview)")
+                  )
+                    return;
+                  if (e.pointerType === "touch")
+                    touchStart.current = { x: e.clientX, y: e.clientY };
+                  else if (e.button === 0) {
+                    const y =
+                      e.clientY - e.currentTarget.getBoundingClientRect().top;
+                    const minute = Math.max(
+                      from,
+                      Math.min(to - 15, snap(from + (y * 60) / scale)),
+                    );
+                    selectionRef.current = {
+                      date,
+                      anchor: minute,
+                      start: minute,
+                      end: minute + 60,
+                      y: e.clientY,
+                      moved: false,
+                    };
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  }
+                }}
+                onPointerUp={(e) => {
+                  const selected = selectionRef.current;
+                  if (e.pointerType !== "touch" && selected?.moved) {
+                    selectionRef.current = null;
+                    setSelection(null);
+                    setHover(null);
+                    e.preventDefault();
+                    e.stopPropagation();
+                    requestAnimationFrame(() =>
+                      onCreate(
+                        selected.date,
+                        selected.start,
+                        undefined,
+                        selected.end - selected.start,
+                      ),
+                    );
+                    return;
+                  }
+                  const start = touchStart.current;
+                  if (
+                    e.pointerType === "touch" &&
+                    (!start ||
+                      Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8)
+                  )
+                    touchStart.current = null;
+                }}
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest("button,.time-block"))
+                    return;
+                  if (
+                    !touchStart.current &&
+                    hover?.date !== date &&
+                    selectionRef.current?.date !== date
+                  )
+                    return;
+                  const y =
+                    (touchStart.current?.y ?? e.clientY) -
+                    e.currentTarget.getBoundingClientRect().top;
+                  createSelection(
                     date,
                     Math.max(
                       from,
                       Math.min(to - 15, snap(from + (y * 60) / scale)),
                     ),
                   );
+                }}
+                onPointerCancel={() => {
+                  touchStart.current = null;
+                  selectionRef.current = null;
+                  setSelection(null);
+                  setHover(null);
                 }}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -416,6 +596,39 @@ export function Timeline({
                 >
                   + 일정 추가
                 </button>
+                {hoveredMinute !== null && hoverGeometry && (
+                  <button
+                    className="timeline-create-preview"
+                    style={hoverGeometry}
+                    aria-label={`${date} ${timeLabel(hoveredMinute)}부터 1시간 일정 추가`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      createSelection(date, hoveredMinute);
+                    }}
+                  >
+                    <strong>＋ {timeLabel(hoveredMinute)}</strong>
+                    {hoverGeometry.height >= 46 && <span>1시간 일정</span>}
+                  </button>
+                )}
+                {selection?.date === date && (
+                  <div
+                    className="selection-preview"
+                    style={
+                      clippedGeometry(
+                        selection.start,
+                        selection.end,
+                        from,
+                        to,
+                        scale,
+                      ) ?? undefined
+                    }
+                  >
+                    <strong>
+                      {timeLabel(selection.start)}–{timeLabel(selection.end)}
+                    </strong>
+                    <span>{selection.end - selection.start}분</span>
+                  </div>
+                )}
                 {a.focus.map(([s, e], n) => {
                   const geometry = clippedGeometry(s, e, from, to, scale);
                   return (
@@ -542,10 +755,16 @@ export function Timeline({
         </div>
       </div>
       <div className="calendar-hint">
+        <button
+          className="mobile-availability"
+          onClick={() => onCreate(days[mobileDay], -1)}
+        >
+          집중 가능 시간 설정
+        </button>
         <span>
           <i className="hint-dash" /> 집중 가능 시간
         </span>
-        <span>15분 단위 · 빈 시간을 두 번 눌러 추가</span>
+        <span>15분 단위 · 빈 시간에 마우스를 올리고 클릭해 추가</span>
       </div>
       {(outsideOpen || listOpen) && (
         <Modal
@@ -561,7 +780,42 @@ export function Timeline({
               : `현재 ${timeLabel(from)}–${timeLabel(to)} 밖에 걸친 일정이에요.`}{" "}
             시간을 이동하거나 상세 내용을 열 수 있어요.
           </p>
-          {(listOpen ? weekBlocks : outside).map((b) => (
+          {listOpen && (
+            <div className="agenda-tools">
+              <label>
+                일정 검색
+                <Input
+                  type="search"
+                  aria-label="일정 검색"
+                  autoFocus
+                  value={search}
+                  placeholder="일정명 또는 메모 검색"
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    if (e.target.value) setAgendaScope("all");
+                  }}
+                />
+              </label>
+              <SegmentedControl
+                label="일정 검색 범위"
+                value={agendaScope}
+                options={[
+                  { value: "week", label: "이번 주" },
+                  { value: "today", label: "오늘 일정" },
+                  { value: "all", label: "전체 일정" },
+                ]}
+                onChange={setAgendaScope}
+              />
+              <p className="helper-text">
+                {agendaBlocks.length}개 일정 · 검색어를 입력하면 저장된 전체
+                일정에서 찾아요.
+              </p>
+            </div>
+          )}
+          {listOpen && !agendaBlocks.length && (
+            <p className="empty-note">조건에 맞는 일정이 없어요.</p>
+          )}
+          {(listOpen ? agendaBlocks : outside).map((b) => (
             <div key={b.id} className="outside-row">
               <div>
                 <b>{titleOf(data, b)}</b>{" "}
@@ -579,10 +833,15 @@ export function Timeline({
               </div>
               <button
                 onClick={async () => {
-                  const date = days.find((date) => blockSlice(b, date, zone))!;
+                  const date =
+                    (agendaScope === "today" && blockSlice(b, today(zone), zone)
+                      ? today(zone)
+                      : days.find((date) => blockSlice(b, date, zone))) ??
+                    formatInTimeZone(b.start_at, zone, "yyyy-MM-dd");
                   setRange(rangeAround(blockSlice(b, date, zone)![0]));
                   setMode("fit");
-                  onDayChange(days.indexOf(date));
+                  if (days.includes(date)) onDayChange(days.indexOf(date));
+                  else onNavigate(date);
                   setOutsideOpen(false);
                   setListOpen(false);
                 }}

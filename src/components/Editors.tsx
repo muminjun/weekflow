@@ -1,3 +1,4 @@
+import type { CalendarEvent } from "../domain/calendar";
 import { confirmAction, alertAction } from "../ui/Confirmations";
 import { Select } from "../ui/Select";
 import { Input } from "../ui/Input";
@@ -438,26 +439,30 @@ export function BlockEditor({
   block,
   date,
   minute,
+  duration = 60,
   weekTaskId,
   commit,
   onClose,
   holiday,
+  onCreated,
 }: {
   data: Dataset;
   block?: Block;
   date: string;
   minute: number;
+  duration?: number;
   weekTaskId?: string;
   commit: Commit;
   onClose: () => void;
   holiday: boolean;
+  onCreated?: (event: CalendarEvent) => void;
 }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const zone = data.profile.timezone;
   const kind = block?.kind ?? (weekTaskId ? "task" : "event");
   const start = block ? localMinute(block.start_at, zone) : minute;
-  const end = block ? localMinute(block.end_at, zone) : minute + 60;
+  const end = block ? localMinute(block.end_at, zone) : minute + duration;
   const endDate = block
     ? formatInTimeZone(block.end_at, zone, "yyyy-MM-dd")
     : addDays(date, Math.floor(end / 1440));
@@ -578,6 +583,14 @@ export function BlockEditor({
         });
       await commit(changes, !!overlaps.length);
       onClose();
+      if (!block && val(f, "state") !== "skipped")
+        onCreated?.({
+          id: String(changes[0].row.id),
+          title,
+          note: val(f, "note"),
+          start: start_at,
+          end: end_at,
+        });
       if (kind === "task" && val(f, "state") === "done") {
         const other = data.time_blocks.filter(
           (b) =>
