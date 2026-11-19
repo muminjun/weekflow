@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Major upgrades (e.g. TypeScript ahead of typescript-eslint support) are
+    # reviewed by hand; automatic PRs stay within compatible ranges.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: [minor, patch]

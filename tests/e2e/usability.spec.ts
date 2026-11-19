@@ -150,6 +150,8 @@ test("command palette runs actions, finds by initial consonants and creates from
 }, info) => {
   test.skip(info.project.name === "mobile", "hardware keyboard");
   await preview(page);
+  // Works while a text field has focus, too.
+  await page.getByPlaceholder("할 일 추가 후 Enter").focus();
   await page.keyboard.press("ControlOrMeta+k");
   const palette = page.getByRole("dialog", { name: "무엇을 할까요?" });
   const input = palette.getByRole("combobox");

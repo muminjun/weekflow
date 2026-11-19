@@ -203,6 +203,12 @@ export function Planner({
       // Coachmarks, first-run setup and confirmations live outside this
       // component's state, so an open dialog anywhere also blocks shortcuts.
       if (e.isComposing || document.querySelector("[role=dialog]")) return;
+      // The palette opens from anywhere, including while typing.
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === "KeyK") {
+        e.preventDefault();
+        setPaletteOpen(true);
+        return;
+      }
       if (
         (e.target as HTMLElement).closest(
           "input,textarea,select,[contenteditable]",
@@ -217,11 +223,6 @@ export function Planner({
       if (e.ctrlKey && !e.metaKey && e.code === "KeyY") {
         e.preventDefault();
         void store.redo?.();
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === "KeyK") {
-        e.preventDefault();
-        setPaletteOpen(true);
         return;
       }
       if (e.key === "/") {
