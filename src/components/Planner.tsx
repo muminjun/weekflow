@@ -1,13 +1,36 @@
-import { Recommendations } from "./Recommendations";
-import { CalendarExport } from "./CalendarExport";
 import type { CalendarEvent } from "../domain/calendar";
 import { shouldAskCalendar } from "../ui/calendarPreference";
 import { Coachmarks } from "./Coachmarks";
+import { ConflictSummary } from "./ConflictSummary";
+import { CommandPalette } from "./CommandPalette";
+import { WeekTemplates } from "./WeekTemplates";
+import { placeTaskChanges } from "../domain/templates";
+import { quickAddChanges } from "../domain/quickAdd";
 import { FirstWeekSetup } from "./NotificationSetup";
-import { confirmAction } from "../ui/Confirmations";
+import { alertAction, confirmAction } from "../ui/Confirmations";
 import { Input } from "../ui/Input";
 import { userMessage } from "../ui/errors";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+// Dialogs opened on demand load separately to keep the first paint small.
+const Settings = lazy(() =>
+  import("./Settings").then((m) => ({ default: m.Settings })),
+);
+const Review = lazy(() =>
+  import("./Review").then((m) => ({ default: m.Review })),
+);
+const Recommendations = lazy(() =>
+  import("./Recommendations").then((m) => ({ default: m.Recommendations })),
+);
+const CalendarExport = lazy(() =>
+  import("./CalendarExport").then((m) => ({ default: m.CalendarExport })),
+);
 import {
   Bell,
   ChevronLeft,
@@ -20,6 +43,8 @@ import {
   Palette,
   NotebookPen,
   Undo2,
+  Command,
+  Redo2,
   RefreshCw,
   X,
   Check,
@@ -31,13 +56,12 @@ import { blockSlice } from "../domain/selectors";
 import { addDays, today, weekOf } from "../domain/planner";
 import { Timeline } from "./Timeline";
 import { SidePanel } from "./SidePanel";
-import { Review } from "./Review";
-import { Settings } from "./Settings";
 import { TaskEditor, BlockEditor, AvailabilityEditor } from "./Editors";
 import { Modal } from "./Modal";
 import { useHolidays } from "../data/holidays";
 import type { PlannerStore } from "../data/usePlanner";
 import { rpc } from "../data/supabase";
+import { pending } from "../data/local";
 import { uuid } from "../data/demo";
 import { ThemeControls } from "../ui/ThemeControls";
 import { IconButton, Button } from "../ui/Controls";
@@ -62,6 +86,7 @@ type Editor =
   | { type: "review" }
   | { type: "appearance" }
   | { type: "carry" }
+  | { type: "templates" }
   | { type: "notifications" }
   | null;
 export function Planner({
@@ -73,7 +98,7 @@ export function Planner({
   store: PlannerStore;
   data: Dataset;
   preview: boolean;
-  onLogout: () => Promise<void>;
+  onLogout: (ask?: boolean) => Promise<boolean>;
 }) {
   const [params, setParams] = useSearchParams();
   const validWeek = params.get("week");
@@ -81,16 +106,25 @@ export function Planner({
     validWeek && /^\d{4}-\d{2}-\d{2}$/.test(validWeek)
       ? weekOf(validWeek)
       : weekOf(today(data.profile.timezone));
-  const [mobileDay, setMobileDay] = useState(
-    Math.min(
-      6,
-      Math.max(0, Number(params.get("day") ?? (new Date().getDay() + 6) % 7)),
-    ),
-  );
+  const [mobileDay, setMobileDay] = useState(() => {
+    const requested = Number(params.get("day"));
+    return Number.isInteger(requested) && params.get("day") !== null
+      ? Math.min(6, Math.max(0, requested))
+      : (new Date().getDay() + 6) % 7;
+  });
   const [calendarEvent, setCalendarEvent] = useState<CalendarEvent | null>(
     null,
   );
   const [editor, setEditor] = useState<Editor>(null);
+  // Each change produces a new dataset; the toast fades 8s after the last one.
+  const [undoHiddenFor, setUndoHiddenFor] = useState<Dataset | null>(null);
+  const undoHidden = undoHiddenFor === data;
+  const canUndo = !!(store.undo || store.redo);
+  useEffect(() => {
+    if (!canUndo) return;
+    const timer = window.setTimeout(() => setUndoHiddenFor(data), 8000);
+    return () => window.clearTimeout(timer);
+  }, [canUndo, data]);
   const mobile = useSyncExternalStore(
     subscribeMobile,
     () => mobileQuery().matches,
@@ -98,6 +132,7 @@ export function Planner({
   const [sheet, setSheet] = useState(false);
   const [recommendOpen, setRecommendOpen] = useState(false);
   const [agendaOpen, setAgendaOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     const replay = () => {
@@ -156,27 +191,51 @@ export function Planner({
     );
   useEffect(() => {
     function key(e: KeyboardEvent) {
-      if (editor || sheet || agendaOpen || recommendOpen || calendarEvent)
-        return;
       if (
-        (e.key === "/" ||
-          ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k")) &&
-        !editor &&
-        !sheet &&
-        !(e.target as HTMLElement).closest(
+        editor ||
+        sheet ||
+        agendaOpen ||
+        recommendOpen ||
+        calendarEvent ||
+        paletteOpen
+      )
+        return;
+      // Coachmarks, first-run setup and confirmations live outside this
+      // component's state, so an open dialog anywhere also blocks shortcuts.
+      if (e.isComposing || document.querySelector("[role=dialog]")) return;
+      if (
+        (e.target as HTMLElement).closest(
           "input,textarea,select,[contenteditable]",
         )
-      ) {
+      )
+        return;
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === "KeyZ") {
+        e.preventDefault();
+        void (e.shiftKey ? store.redo?.() : store.undo?.());
+        return;
+      }
+      if (e.ctrlKey && !e.metaKey && e.code === "KeyY") {
+        e.preventDefault();
+        void store.redo?.();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.code === "KeyK") {
+        e.preventDefault();
+        setPaletteOpen(true);
+        return;
+      }
+      if (e.key === "/") {
         e.preventDefault();
         setAgendaOpen(true);
         return;
       }
+      // e.code keeps N working while the Korean IME turns the key into ㅜ.
       if (
-        e.key.toLowerCase() === "n" &&
-        !editor &&
-        !(e.target as HTMLElement).closest(
-          "input,textarea,select,[contenteditable]",
-        )
+        e.code === "KeyN" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
       ) {
         e.preventDefault();
         setEditor({ type: "task" });
@@ -184,7 +243,15 @@ export function Planner({
     }
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [editor, sheet, agendaOpen, recommendOpen, calendarEvent]);
+  }, [
+    editor,
+    sheet,
+    agendaOpen,
+    recommendOpen,
+    calendarEvent,
+    paletteOpen,
+    store,
+  ]);
   useEffect(() => {
     if (
       preview ||
@@ -242,7 +309,7 @@ export function Planner({
         prevOpen.some((w) => w.id === id && !nonRepeat.includes(w)),
       ) &&
       !(await confirmAction(
-        "반복 Todo의 이전 회차를 이월합니다. 다음 반복 회차와 별개로 남습니다. 계속할까요?",
+        "반복 할 일의 이전 회차를 이월합니다. 다음 반복 회차와 별개로 남습니다. 계속할까요?",
       ))
     )
       return;
@@ -273,6 +340,21 @@ export function Planner({
       }
       await store.commit(changes);
     } else {
+      // roll_over runs on the server directly, so it must not race queued
+      // offline edits to the same Todos: send those first.
+      if (!navigator.onLine) {
+        await alertAction(
+          "이월은 연결된 상태에서만 할 수 있어요. 연결되면 다시 시도해 주세요.",
+        );
+        return;
+      }
+      await store.flush();
+      if ((await pending(data.profile.id)).length) {
+        await alertAction(
+          "아직 전송되지 않은 변경이 있어요. 저장이 끝난 뒤 다시 이월해 주세요.",
+        );
+        return;
+      }
       await rpc("roll_over", { p_ids: selectedCarry, p_target: week });
       await store.reload();
     }
@@ -290,10 +372,21 @@ export function Planner({
         <span
           className={`sync-status ${preview ? "preview-status" : ""}`}
           data-tooltip={store.status}
-          role="status"
         >
           <span />
           <span className="sync-label">{store.status}</span>
+        </span>
+        {/* Only real transitions are announced, not each background check. */}
+        <span className="sr-only" role="status">
+          {
+            {
+              saving: "저장 중",
+              saved: "저장됨",
+              offline: "오프라인 · 기기에 임시 저장",
+              error: "저장하지 못했어요",
+              preview: "",
+            }[store.syncState]
+          }
         </span>
         <button
           className="icon-button"
@@ -327,6 +420,15 @@ export function Planner({
           )}
         </button>
         <button
+          className="icon-button desktop-only"
+          aria-label="명령 팔레트 열기"
+          aria-keyshortcuts="Meta+K Control+K"
+          data-tooltip="명령 · 검색 (⌘K)"
+          onClick={() => setPaletteOpen(true)}
+        >
+          <Command size={18} />
+        </button>
+        <button
           className="icon-button"
           aria-label="설정 열기"
           onClick={() => setEditor({ type: "settings" })}
@@ -335,6 +437,7 @@ export function Planner({
         </button>
         <button
           className="account-button"
+          aria-label={preview ? "체험 종료" : "로그아웃"}
           data-tooltip={preview ? "체험 종료" : "로그아웃"}
           onClick={() => void onLogout()}
         >
@@ -428,14 +531,14 @@ export function Planner({
           </div>
         </div>
         {(store.error || recurrenceStatus) && (
-          <div className="notice" role="status">
+          <div className="notice" role={store.error ? "alert" : "status"}>
             {store.error ? userMessage(store.error) : recurrenceStatus}
             {store.error && (
               <button onClick={() => store.setError("")}>닫기</button>
             )}
           </div>
         )}
-        {!holidays.data?.known && (
+        {holidays.unknown && (
           <div className="holiday-notice" role="status">
             공휴일 미확인 · 가용 시간은 잠정값입니다.
             <button onClick={() => void holidays.refetch()}>다시 확인</button>
@@ -487,7 +590,7 @@ export function Planner({
             onDayChange={setMobileDay}
             onNavigate={(date) => nav(date, true)}
             holidayNames={holidayNames}
-            holidayKnown={holidays.data?.known ?? false}
+            holidayKnown={holidays.data?.known ?? holidays.isHolidayLoading}
             onEdit={(block) =>
               setEditor({
                 type: "block",
@@ -506,6 +609,34 @@ export function Planner({
                 week={week}
                 commit={store.commit}
                 onTask={openTask}
+                onPlaceTask={(taskId) => {
+                  const w = data.week_tasks.find(
+                    (w) => w.task_id === taskId && w.week_start === week,
+                  );
+                  setSheet(false);
+                  if (w) {
+                    create(days[mobileDay], 540, w.id);
+                    return;
+                  }
+                  // Link the deadline Todo to this week, then open the usual
+                  // editor so overlap and focus-time checks still apply.
+                  const placed = placeTaskChanges(
+                    data,
+                    taskId,
+                    week,
+                    days[mobileDay],
+                    540,
+                    uuid,
+                  );
+                  const link = placed.changes.filter(
+                    (c) => c.table === "week_tasks",
+                  );
+                  void store
+                    .commit(link)
+                    .then(() =>
+                      create(days[mobileDay], 540, placed.weekTaskId),
+                    );
+                }}
                 onSuggest={() => {
                   setSheet(false);
                   setRecommendOpen(true);
@@ -557,6 +688,32 @@ export function Planner({
             week={week}
             commit={store.commit}
             onTask={openTask}
+            onPlaceTask={(taskId) => {
+              const w = data.week_tasks.find(
+                (w) => w.task_id === taskId && w.week_start === week,
+              );
+              setSheet(false);
+              if (w) {
+                create(days[mobileDay], 540, w.id);
+                return;
+              }
+              // Link the deadline Todo to this week, then open the usual
+              // editor so overlap and focus-time checks still apply.
+              const placed = placeTaskChanges(
+                data,
+                taskId,
+                week,
+                days[mobileDay],
+                540,
+                uuid,
+              );
+              const link = placed.changes.filter(
+                (c) => c.table === "week_tasks",
+              );
+              void store
+                .commit(link)
+                .then(() => create(days[mobileDay], 540, placed.weekTaskId));
+            }}
             onSuggest={() => {
               setSheet(false);
               setRecommendOpen(true);
@@ -566,7 +723,19 @@ export function Planner({
       )}
       {editor?.type === "review" && (
         <Modal title="주간 회고" wide onClose={() => setEditor(null)}>
-          <Review data={data} week={week} commit={store.commit} />
+          <Suspense fallback={null}>
+            <Review data={data} week={week} commit={store.commit} />
+          </Suspense>
+        </Modal>
+      )}
+      {editor?.type === "templates" && (
+        <Modal title="주 템플릿" wide onClose={() => setEditor(null)}>
+          <WeekTemplates
+            data={data}
+            week={week}
+            commit={store.commit}
+            onClose={() => setEditor(null)}
+          />
         </Modal>
       )}
       {editor?.type === "appearance" && (
@@ -574,22 +743,177 @@ export function Planner({
           <ThemeControls />
         </Modal>
       )}
+      {paletteOpen && (
+        <CommandPalette
+          data={data}
+          week={week}
+          onClose={() => setPaletteOpen(false)}
+          commands={[
+            {
+              id: "new-task",
+              label: "새 할 일",
+              keys: "N",
+              aliases: "추가 만들기 todo",
+              run: () => setEditor({ type: "task" }),
+            },
+            {
+              id: "today",
+              label: "오늘로 이동",
+              aliases: "이번 주",
+              run: () => nav(today(data.profile.timezone), true),
+            },
+            {
+              id: "prev-week",
+              label: "이전 주",
+              aliases: "지난주",
+              run: () => nav(addDays(week, -7)),
+            },
+            {
+              id: "next-week",
+              label: "다음 주",
+              run: () => nav(addDays(week, 7)),
+            },
+            {
+              id: "agenda",
+              label: "일정 목록 · 검색",
+              keys: "/",
+              run: () => setAgendaOpen(true),
+            },
+            {
+              id: "recommend",
+              label: "빈 시간 추천 · 자동 배치",
+              aliases: "스케줄 배치",
+              run: () => setRecommendOpen(true),
+            },
+            {
+              id: "review",
+              label: "주간 회고",
+              aliases: "인사이트 통계",
+              run: () => setEditor({ type: "review" }),
+            },
+            ...(nonRepeat.length
+              ? [
+                  {
+                    id: "carry",
+                    label: `지난주 미완료 ${nonRepeat.length}개 이월`,
+                    run: () => {
+                      setSelectedCarry(nonRepeat.map((w) => w.id));
+                      setEditor({ type: "carry" });
+                    },
+                  },
+                ]
+              : []),
+            ...(!mobile
+              ? [
+                  {
+                    id: "wide",
+                    label: collapsed ? "작업 패널 펼치기" : "일정 넓게 보기",
+                    run: () => setCollapsed((v) => !v),
+                  },
+                ]
+              : []),
+            ...(store.undo
+              ? [
+                  {
+                    id: "undo",
+                    label: "실행 취소",
+                    keys: "⌘Z",
+                    run: () => void store.undo?.(),
+                  },
+                ]
+              : []),
+            ...(store.redo
+              ? [
+                  {
+                    id: "redo",
+                    label: "다시 실행",
+                    keys: "⇧⌘Z",
+                    run: () => void store.redo?.(),
+                  },
+                ]
+              : []),
+            {
+              id: "templates",
+              label: "주 템플릿",
+              aliases: "템플릿 평상 주 시험 주 저장 적용",
+              run: () => setEditor({ type: "templates" }),
+            },
+            {
+              id: "appearance",
+              label: "외관 · 테마",
+              aliases: "다크 모드 글자 크기",
+              run: () => setEditor({ type: "appearance" }),
+            },
+            {
+              id: "settings",
+              label: "설정",
+              aliases: "반복 카테고리 알림 백업 계정",
+              run: () => setEditor({ type: "settings" }),
+            },
+          ]}
+          onCreate={(raw) => {
+            const { changes } = quickAddChanges(raw, data, week, uuid);
+            void store.commit(changes);
+          }}
+          onOpenBlock={(block) => {
+            nav(block.local_date, true);
+            requestAnimationFrame(() =>
+              setEditor({
+                type: "block",
+                block,
+                date: block.local_date,
+                minute: 0,
+              }),
+            );
+          }}
+          onOpenTask={(task, wt) => openTask(task, wt)}
+        />
+      )}
       <Coachmarks
         enabled={
-          !editor && !sheet && !agendaOpen && !calendarEvent && !recommendOpen
+          !editor &&
+          !sheet &&
+          !agendaOpen &&
+          !calendarEvent &&
+          !recommendOpen &&
+          !paletteOpen
         }
         autoStart={data.profile.onboarding_completed}
       />
-      {store.undo &&
+      {(store.undo || store.redo) &&
+        !undoHidden &&
         !editor &&
         !sheet &&
         !agendaOpen &&
         !recommendOpen &&
         !calendarEvent && (
-          <button className="undo-toast" onClick={() => void store.undo?.()}>
-            <Undo2 size={16} />
-            실행 취소
-          </button>
+          <div className="undo-toast" role="status">
+            <span>
+              {store.lastHistory === "undo"
+                ? "되돌렸어요"
+                : store.lastHistory === "redo"
+                  ? "다시 적용했어요"
+                  : "변경했어요"}
+            </span>
+            {store.undo && (
+              <button
+                onClick={() => void store.undo?.()}
+                aria-keyshortcuts="Meta+Z Control+Z"
+              >
+                <Undo2 size={16} />
+                실행 취소
+              </button>
+            )}
+            {store.redo && store.lastHistory !== "change" && (
+              <button
+                onClick={() => void store.redo?.()}
+                aria-keyshortcuts="Meta+Shift+Z Control+Y"
+              >
+                <Redo2 size={16} />
+                다시 실행
+              </button>
+            )}
+          </div>
         )}
       {editor?.type === "task" && (
         <TaskEditor
@@ -603,24 +927,30 @@ export function Planner({
         />
       )}
       {recommendOpen && (
-        <Recommendations
-          data={data}
-          week={week}
-          holidays={new Set(holidayNames.keys())}
-          known={holidays.data?.known ?? false}
-          onClose={() => setRecommendOpen(false)}
-          onPlace={(id, date, minute, duration) => {
-            setRecommendOpen(false);
-            nav(date, true);
-            create(date, minute, id, duration);
-          }}
-        />
+        <Suspense fallback={null}>
+          <Recommendations
+            data={data}
+            week={week}
+            holidays={new Set(holidayNames.keys())}
+            known={holidays.data?.known ?? false}
+            onRetry={() => void holidays.refetch()}
+            onApplyAll={(changes) => store.commit(changes)}
+            onClose={() => setRecommendOpen(false)}
+            onPlace={(id, date, minute, duration) => {
+              setRecommendOpen(false);
+              nav(date, true);
+              create(date, minute, id, duration);
+            }}
+          />
+        </Suspense>
       )}
       {calendarEvent && (
-        <CalendarExport
-          event={calendarEvent}
-          onClose={() => setCalendarEvent(null)}
-        />
+        <Suspense fallback={null}>
+          <CalendarExport
+            event={calendarEvent}
+            onClose={() => setCalendarEvent(null)}
+          />
+        </Suspense>
       )}
       {editor?.type === "block" && (
         <BlockEditor
@@ -650,14 +980,17 @@ export function Planner({
         />
       )}
       {editor?.type === "settings" && (
-        <Settings
-          data={data}
-          commit={store.commit}
-          onClose={() => setEditor(null)}
-          onLogout={onLogout}
-          onReload={store.reload}
-          preview={preview}
-        />
+        <Suspense fallback={null}>
+          <Settings
+            data={data}
+            commit={store.commit}
+            onClose={() => setEditor(null)}
+            onLogout={onLogout}
+            onReload={store.reload}
+            preview={preview}
+            onOpenTemplates={() => setEditor({ type: "templates" })}
+          />
+        </Suspense>
       )}
       {editor?.type === "carry" && (
         <Modal
@@ -675,7 +1008,7 @@ export function Planner({
             className="text-button"
             onClick={() => setSelectedCarry(nonRepeat.map((w) => w.id))}
           >
-            일반 Todo 전체 선택
+            일반 할 일 전체 선택
           </button>
           {prevOpen.map((w) => (
             <label className="check-label" key={w.id}>
@@ -750,6 +1083,7 @@ export function Planner({
                 : "저장할 수 없는 변경이 있습니다"
           }
           onClose={() => {}}
+          dismissible={false}
           wide
         >
           <p>
@@ -757,30 +1091,10 @@ export function Planner({
             항목과 연결된 후속 대기 변경도 취소합니다. 다른 항목의 변경은
             유지합니다.
           </p>
-          <div className="conflict-compare">
-            <section>
-              <h3>내 변경</h3>
-              <pre>
-                {JSON.stringify(store.conflict.command.changes, null, 2)}
-              </pre>
-            </section>
-            <section>
-              <h3>서버 변경</h3>
-              <pre>
-                {JSON.stringify(
-                  store.conflict.command.changes.map((c) => {
-                    const key = c.table === "profiles" ? "profile" : c.table;
-                    const rows = store.conflict!.server[key];
-                    return Array.isArray(rows)
-                      ? rows.find((r) => "id" in r && r.id === c.row.id)
-                      : rows;
-                  }),
-                  null,
-                  2,
-                )}
-              </pre>
-            </section>
-          </div>
+          <ConflictSummary
+            changes={store.conflict.command.changes}
+            server={store.conflict.server}
+          />
           <div className="secondary-actions">
             <button onClick={() => void store.resolve(false)}>
               서버 변경 사용

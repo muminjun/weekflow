@@ -1,6 +1,6 @@
 import { formatInTimeZone } from "date-fns-tz";
 import type { Change, Dataset, WeekTask } from "../domain/types";
-import { dayStatus, addDays } from "../domain/planner";
+import { dayStatus, addDays, dayLabel } from "../domain/planner";
 import { uuid } from "../data/demo";
 export function Tracker({
   data,
@@ -18,8 +18,14 @@ export function Tracker({
         "yyyy-MM-dd",
       )
     : null;
+  const title =
+    data.tasks.find((t) => t.id === weekTask.task_id)?.title ?? "할 일";
   return (
-    <div className="tracker" role="group" aria-label="요일별 수행 기록">
+    <div
+      className="tracker"
+      role="group"
+      aria-label={`${title} 요일별 수행 기록`}
+    >
       {Array.from({ length: 7 }, (_, i) => {
         const date = addDays(weekTask.week_start, i);
         const manual = data.week_task_day_marks.find(
@@ -50,14 +56,21 @@ export function Tracker({
           partial: "일부 완료",
           done: "완료",
         }[status];
+        const weekday = ["월", "화", "수", "목", "금", "토", "일"][i];
+        const day = dayLabel(date);
+        const next =
+          manual?.mark === "planned"
+            ? "완료로 기록"
+            : manual?.mark === "done"
+              ? "직접 기록 지우기"
+              : "계획으로 기록";
         return (
           <button
             key={date}
-            data-weekday={["월", "화", "수", "목", "금", "토", "일"][i]}
+            data-weekday={weekday}
             className={`tracker-cell ${line ? "after-done" : ""}`}
-            data-tooltip={`${date}: ${label}${manual ? " (직접 기록)" : ""}`}
-            aria-pressed={status !== "empty"}
-            aria-label={`${date} ${label}, 눌러 직접 기록 변경`}
+            data-tooltip={`${day}: ${label}${manual ? " (직접 기록)" : ""}`}
+            aria-label={`${title} ${day}: ${label}${manual ? "(직접 기록)" : ""}. 누르면 ${next}`}
             onClick={() => {
               const mark =
                 manual?.mark === "planned"

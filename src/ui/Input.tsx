@@ -83,10 +83,20 @@ function FileInput(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 function NumberInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const ref = useRef<HTMLInputElement>(null);
+  const [internal, setInternal] = useState(String(props.defaultValue ?? ""));
+  const current = String(props.value ?? internal);
+  useEffect(() => {
+    const form = ref.current?.form;
+    const reset = () =>
+      queueMicrotask(() => setInternal(ref.current?.value ?? ""));
+    form?.addEventListener("reset", reset);
+    return () => form?.removeEventListener("reset", reset);
+  }, []);
   const step = (up: boolean) => {
     const el = ref.current!;
     if (up) el.stepUp();
     else el.stepDown();
+    setInternal(el.value);
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
     props.onChange?.({
@@ -96,12 +106,26 @@ function NumberInput(props: InputHTMLAttributes<HTMLInputElement>) {
   };
   return (
     <span className="number-field">
-      <input {...props} type="number" ref={ref} />
+      <input
+        {...props}
+        type="number"
+        ref={ref}
+        onChange={(e) => {
+          setInternal(e.target.value);
+          props.onChange?.(e);
+        }}
+      />
       <span className="number-actions">
         <button
           type="button"
           aria-label="값 줄이기"
-          disabled={props.disabled || props.readOnly}
+          disabled={
+            props.disabled ||
+            props.readOnly ||
+            (props.min !== undefined &&
+              current !== "" &&
+              Number(current) <= Number(props.min))
+          }
           onClick={() => step(false)}
         >
           <Minus size={16} />
@@ -109,7 +133,13 @@ function NumberInput(props: InputHTMLAttributes<HTMLInputElement>) {
         <button
           type="button"
           aria-label="값 늘리기"
-          disabled={props.disabled || props.readOnly}
+          disabled={
+            props.disabled ||
+            props.readOnly ||
+            (props.max !== undefined &&
+              current !== "" &&
+              Number(current) >= Number(props.max))
+          }
           onClick={() => step(true)}
         >
           <Plus size={16} />
@@ -184,13 +214,14 @@ function PickerInput({ type, compact, ...props }: Props) {
   }, [props.defaultValue, type]);
   function update(value: string) {
     const el = ref.current!;
-    setInternal(value);
-    el.value = value;
-    el.setCustomValidity(check(value));
-    props.onChange?.({
-      target: el,
-      currentTarget: el,
-    } as ChangeEvent<HTMLInputElement>);
+    // Go through the native setter and a real input event so React's onChange,
+    // form feedback listeners and dirty-form guards all see picker choices.
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
   }
   const label =
     type === "date" ? "날짜 선택" : type === "time" ? "시간 선택" : "색상 선택";
@@ -235,6 +266,13 @@ function PickerInput({ type, compact, ...props }: Props) {
             setInternal(e.target.value);
             e.target.setCustomValidity(check(e.target.value));
             props.onChange?.(e);
+          }}
+          onBlur={(e) => {
+            // The numeric keypad has no ":", so "930" or "0930" means 09:30.
+            const digits = /^(\d{1,2})(\d{2})$/.exec(e.target.value.trim());
+            if (type === "time" && digits)
+              update(`${digits[1].padStart(2, "0")}:${digits[2]}`);
+            props.onBlur?.(e);
           }}
         />
         <Popover.Trigger asChild>

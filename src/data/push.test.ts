@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { FunctionsHttpError } from "@supabase/supabase-js";
+import { FunctionsHttpError } from "@supabase/functions-js";
 import { pushAction } from "./push";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -9,17 +9,13 @@ beforeEach(() => {
   vi.stubGlobal("PushManager", {});
   vi.stubGlobal("navigator", {
     serviceWorker: {
-      getRegistration: vi
-        .fn()
-        .mockResolvedValue({
-          pushManager: {
-            getSubscription: vi
-              .fn()
-              .mockResolvedValue({
-                endpoint: "https://fcm.googleapis.com/test-device",
-              }),
-          },
-        }),
+      getRegistration: vi.fn().mockResolvedValue({
+        pushManager: {
+          getSubscription: vi.fn().mockResolvedValue({
+            endpoint: "https://fcm.googleapis.com/test-device",
+          }),
+        },
+      }),
     },
   });
 });
@@ -78,11 +74,9 @@ it("requests permission during the click before awaiting service worker lookup",
 it("targets test Push to this registered device instead of every device", async () => {
   const registration = {
     pushManager: {
-      getSubscription: vi
-        .fn()
-        .mockResolvedValue({
-          endpoint: "https://fcm.googleapis.com/test-device",
-        }),
+      getSubscription: vi.fn().mockResolvedValue({
+        endpoint: "https://fcm.googleapis.com/test-device",
+      }),
     },
   };
   navigator.serviceWorker.getRegistration = vi
@@ -104,11 +98,9 @@ it("does not unregister an existing device when server registration temporarily 
     toJSON: () => ({ endpoint: "https://fcm.googleapis.com/existing" }),
     unsubscribe,
   };
-  navigator.serviceWorker.getRegistration = vi
-    .fn()
-    .mockResolvedValue({
-      pushManager: { getSubscription: vi.fn().mockResolvedValue(subscription) },
-    });
+  navigator.serviceWorker.getRegistration = vi.fn().mockResolvedValue({
+    pushManager: { getSubscription: vi.fn().mockResolvedValue(subscription) },
+  });
   vi.stubEnv("VITE_VAPID_PUBLIC_KEY", "AQID");
   vi.stubGlobal("Notification", {
     requestPermission: vi.fn().mockResolvedValue("granted"),

@@ -174,6 +174,55 @@ const backupSchema = z
             })
             .passthrough(),
         ),
+        // Added with migration 015; older backups omit both keys.
+        block_sessions: z
+          .array(
+            base
+              .extend({
+                block_id: id,
+                started_at: timestamp,
+                ended_at: timestamp.nullable(),
+                note: z.string().max(1000),
+              })
+              .passthrough(),
+          )
+          .default([]),
+        week_templates: z
+          .array(
+            base
+              .extend({
+                name: z.string().trim().min(1).max(80),
+                blocks: z
+                  .array(
+                    z
+                      .object({
+                        weekday: z.number().int().min(1).max(7),
+                        start_minute: z
+                          .number()
+                          .int()
+                          .min(0)
+                          .max(1425)
+                          .multipleOf(15),
+                        duration: z
+                          .number()
+                          .int()
+                          .min(15)
+                          .max(1440)
+                          .multipleOf(15),
+                        kind: z.enum(["event", "task"]),
+                        title,
+                        category_id: id.nullable(),
+                        note: z.string().max(1000),
+                      })
+                      .strict(),
+                  )
+                  .max(200),
+                goals: z.array(z.string().max(240)).max(20),
+              })
+              .passthrough(),
+          )
+          .max(30)
+          .default([]),
         notification_preferences: z
           .object({
             user_id: id,
@@ -207,8 +256,13 @@ export function parseBackup(text: string): Backup {
     throw Error("파일은 최대 10MB입니다.");
   const b = backupSchema.parse(JSON.parse(text));
   const d = b.data;
-  const has = (rows: { id: string }[], id: string | null) =>
-    id === null || rows.some((r) => r.id === id);
+  const ids = new Map<unknown, Set<string>>();
+  const has = (rows: { id: string }[], id: string | null) => {
+    if (id === null) return true;
+    let set = ids.get(rows);
+    if (!set) ids.set(rows, (set = new Set(rows.map((r) => r.id))));
+    return set.has(id);
+  };
   for (const t of d.tasks)
     if (!has(d.categories, t.category_id)) throw Error("잘못된 카테고리 연결");
   for (const w of d.week_tasks)
@@ -216,6 +270,17 @@ export function parseBackup(text: string): Backup {
   for (const x of d.time_blocks)
     if (!has(d.week_tasks, x.week_task_id) || x.end_at <= x.start_at)
       throw Error("잘못된 시간 블록");
+  const DAY = 24 * 60 * 60 * 1000;
+  let open = 0;
+  for (const x of d.block_sessions) {
+    if (!has(d.time_blocks, x.block_id)) throw Error("잘못된 집중 기록 연결");
+    if (x.ended_at === null) open++;
+    else {
+      const ms = Date.parse(x.ended_at) - Date.parse(x.started_at);
+      if (ms < 0 || ms > DAY) throw Error("잘못된 집중 기록 시간");
+    }
+  }
+  if (open > 1) throw Error("진행 중인 집중 기록이 여러 개예요.");
   for (const g of d.goal_week_tasks)
     if (!has(d.goals, g.goal_id) || !has(d.week_tasks, g.week_task_id))
       throw Error("잘못된 목표 연결");

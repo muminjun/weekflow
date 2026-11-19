@@ -34,7 +34,7 @@ test("schedule list searches saved titles and exposes today filter", async ({
   ).toBeVisible();
   await page.keyboard.press("/");
   const list = page.getByRole("dialog", {
-    name: "이번 주 일정 목록",
+    name: "일정 목록",
     exact: true,
   });
   await expect(
@@ -63,7 +63,7 @@ test("unplaced Todo recommendations open a real linked block editor", async ({
     await page.getByRole("button", { name: /할 일.*열기/ }).click();
     await page.keyboard.press("/");
     await expect(
-      page.getByRole("dialog", { name: "이번 주 일정 목록", exact: true }),
+      page.getByRole("dialog", { name: "일정 목록", exact: true }),
     ).toHaveCount(0);
   }
   await page.getByPlaceholder("할 일 추가 후 Enter").fill("빈 시간 추천 검증");

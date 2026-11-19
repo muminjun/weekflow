@@ -34,7 +34,7 @@ test("mobile saved schedule offers calendar copy with correct ICS and opt-out", 
   await page.screenshot({ path: "docs/screenshots/mobile-calendar-copy.png" });
   await page.keyboard.press("/");
   await expect(
-    page.getByRole("dialog", { name: "이번 주 일정 목록", exact: true }),
+    page.getByRole("dialog", { name: "일정 목록", exact: true }),
   ).toHaveCount(0);
   await expect(
     copy.getByText("기기 달력 검증, 일정", { exact: true }),

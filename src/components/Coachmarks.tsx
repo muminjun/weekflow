@@ -97,7 +97,7 @@ export function Coachmarks({
         Math.min(innerWidth - width - 12, b.left + b.width / 2 - width / 2),
       );
       const above = b.bottom + height + 20 > innerHeight;
-      setPosition({
+      const next = {
         left,
         top: Math.max(
           12,
@@ -114,7 +114,12 @@ export function Coachmarks({
           width: b.width + 6,
           height: b.height + 6,
         },
-      });
+      };
+      // DOM changes elsewhere on the page usually leave the target in place;
+      // keep the same state object then so the tour does not re-render.
+      setPosition((current) =>
+        JSON.stringify(current) === JSON.stringify(next) ? current : next,
+      );
     };
     const resize = () => {
       cancelAnimationFrame(frame);

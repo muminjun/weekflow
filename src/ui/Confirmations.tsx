@@ -1,6 +1,12 @@
 import { useSyncExternalStore, useRef } from "react";
 import { Modal } from "../components/Modal";
+type ConfirmOptions = {
+  title?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+};
 type Request = {
+  options?: ConfirmOptions;
   kind: "confirm" | "prompt" | "alert";
   message: string;
   resolve: (value: string | boolean | null) => void;
@@ -9,15 +15,15 @@ let current: Request | null = null;
 const queue: Request[] = [];
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
-function ask(kind: Request["kind"], message: string) {
+function ask(kind: Request["kind"], message: string, options?: ConfirmOptions) {
   return new Promise<string | boolean | null>((resolve) => {
-    queue.push({ kind, message, resolve });
+    queue.push({ kind, message, resolve, options });
     if (!current) current = queue.shift()!;
     emit();
   });
 }
-export async function confirmAction(message: string) {
-  return (await ask("confirm", message)) === true;
+export async function confirmAction(message: string, options?: ConfirmOptions) {
+  return (await ask("confirm", message, options)) === true;
 }
 export async function promptAction(message: string) {
   return (await ask("prompt", message)) as string | null;
@@ -43,7 +49,11 @@ export function ConfirmationHost() {
   if (!request) return null;
   return (
     <Modal
-      title={request.kind === "alert" ? "안내" : "변경 확인"}
+      title={
+        request.options?.title ??
+        (request.kind === "alert" ? "안내" : "변경 확인")
+      }
+      description={request.message}
       onClose={() => finish(request.kind === "prompt" ? null : false)}
     >
       <form
@@ -67,19 +77,20 @@ export function ConfirmationHost() {
               type="button"
               onClick={() => finish(request.kind === "prompt" ? null : false)}
             >
-              취소
+              {request.options?.cancelLabel ?? "취소"}
             </button>
           )}
           <button
             className={`primary ${/영구 삭제/.test(request.message) ? "destructive" : ""}`}
           >
-            {request.kind === "alert"
-              ? "확인"
-              : request.kind === "prompt"
-                ? "입력한 내용으로 진행"
-                : request.message.includes("겹")
-                  ? "겹쳐서 배치"
-                  : "계속"}
+            {request.options?.confirmLabel ??
+              (request.kind === "alert"
+                ? "확인"
+                : request.kind === "prompt"
+                  ? "입력한 내용으로 진행"
+                  : request.message.includes("겹")
+                    ? "겹쳐서 배치"
+                    : "계속")}
           </button>
         </div>
       </form>

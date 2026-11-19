@@ -19,7 +19,16 @@ for (const file of new Set(files)) {
   const privateKey =
     text.includes("-".repeat(5) + "BEGIN PRIVATE KEY" + "-".repeat(5)) ||
     text.includes("-".repeat(5) + "BEGIN EC PRIVATE KEY" + "-".repeat(5));
-  const secret = /sb_secret_[a-zA-Z0-9_-]{20,}/.test(text);
+  const secret = [
+    /sb_secret_[a-zA-Z0-9_-]{20,}/,
+    /\bsbp_[a-f0-9]{40}\b/,
+    /GOCSPX-[\w-]{20,}/,
+    /\bghp_[A-Za-z0-9]{36}\b/,
+    /\bgithub_pat_[A-Za-z0-9_]{60,}/,
+    /\bsk-ant-[\w-]{20,}/,
+    /VAPID_PRIVATE_KEY\s*[=:]\s*["']?[A-Za-z0-9_-]{43}\b/,
+    /HOLIDAY_API_KEY\s*[=:]\s*["']?[A-Za-z0-9%+/=]{20,}/,
+  ].some((pattern) => pattern.test(text));
   const serviceToken = [...text.matchAll(/eyJ[\w-]+\.([\w-]+)\.[\w-]+/g)].some(
     (m) => {
       try {

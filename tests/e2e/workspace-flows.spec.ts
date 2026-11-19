@@ -215,9 +215,7 @@ test("agenda is a reachable alternative for short blocks and closes with Escape"
 }) => {
   await preview(page);
   await page.getByRole("button", { name: /^일정 목록/ }).click();
-  await expect(
-    page.getByRole("dialog", { name: "이번 주 일정 목록" }),
-  ).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "일정 목록" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^일정 목록/ })).toBeFocused();

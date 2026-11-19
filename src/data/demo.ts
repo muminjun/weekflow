@@ -44,6 +44,8 @@ export function emptyData(id: string): Dataset {
     recurrence_rules: [],
     recurrence_occurrences: [],
     week_reviews: [],
+    block_sessions: [],
+    week_templates: [],
     notification_preferences: {
       user_id: id,
       enabled: false,

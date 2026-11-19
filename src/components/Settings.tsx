@@ -7,6 +7,8 @@ import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { Download, Upload, LogOut, Bell, Trash2 } from "lucide-react";
 import { Modal } from "./Modal";
+import { CalendarFeed } from "./CalendarFeed";
+import { pending } from "../data/local";
 import type { Change, Dataset, Rule } from "../domain/types";
 import {
   parseBackup,
@@ -16,7 +18,7 @@ import {
   type Backup,
 } from "../domain/backup";
 import { uuid } from "../data/demo";
-import { timeLabel, today } from "../domain/planner";
+import { parseWindows, timeLabel, today } from "../domain/planner";
 import { rpc, supabase } from "../data/supabase";
 import { pushAction } from "../data/push";
 import type { Commit } from "./Editors";
@@ -28,13 +30,15 @@ export function Settings({
   onLogout,
   onReload,
   preview,
+  onOpenTemplates,
 }: {
   data: Dataset;
   commit: Commit;
   onClose: () => void;
-  onLogout: () => Promise<void>;
+  onLogout: (ask?: boolean) => Promise<boolean>;
   onReload: () => Promise<unknown>;
   preview: boolean;
+  onOpenTemplates?: () => void;
 }) {
   const [askCalendar, setAskCalendarState] = useState(shouldAskCalendar);
   const [tab, setTab] = useState("기본");
@@ -56,21 +60,29 @@ export function Settings({
   }
   return (
     <Modal title="설정" onClose={onClose} wide>
-      <div className="settings-tabs">
-        {["기본", "카테고리", "반복", "알림", "백업", "계정", "사용법"].map(
-          (t) => (
-            <button
-              key={t}
-              className={tab === t ? "active" : ""}
-              onClick={() => setTab(t)}
-            >
-              {t}
-            </button>
-          ),
-        )}
+      <div className="settings-tabs" role="group" aria-label="설정 항목">
+        {[
+          "기본",
+          "카테고리",
+          "반복",
+          "알림",
+          "연동",
+          "백업",
+          "계정",
+          "사용법",
+        ].map((t) => (
+          <button
+            key={t}
+            className={tab === t ? "active" : ""}
+            aria-pressed={tab === t}
+            onClick={() => setTab(t)}
+          >
+            {t}
+          </button>
+        ))}
       </div>
       <div className="settings-content">
-        {tab === "사용법" && (
+        <div className="settings-panel" hidden={tab !== "사용법"}>
           <section className="help-section">
             <h3>한 화면에서 만드는 나의 한 주</h3>
             <p>
@@ -89,8 +101,8 @@ export function Settings({
               사용법 다시 보기
             </button>
           </section>
-        )}
-        {tab === "기본" && (
+        </div>
+        <div className="settings-panel" hidden={tab !== "기본"}>
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -99,7 +111,9 @@ export function Settings({
               try {
                 new Intl.DateTimeFormat("ko-KR", { timeZone: timezone });
               } catch {
-                setMessage("유효한 IANA 시간대를 입력해 주세요.");
+                setMessage(
+                  "‘Asia/Seoul’처럼 지역 이름으로 된 시간대를 입력해 주세요.",
+                );
                 return;
               }
               const start = Number(f.get("display_start_minute")),
@@ -131,25 +145,9 @@ export function Settings({
               try {
                 for (let d = 1; d <= 7; d++) {
                   const value = String(f.get(`day${d}`) ?? "");
-                  for (const s of value.split(",").filter((s) => s.trim())) {
-                    const [a, b] = s.trim().split("-"),
-                      n = (t: string) =>
-                        t
-                          .split(":")
-                          .reduce(
-                            (a, x, i) => a + Number(x) * (i === 0 ? 60 : 1),
-                            0,
-                          );
-                    const start_minute = n(a),
-                      end_minute = n(b);
-                    if (
-                      !Number.isFinite(start_minute) ||
-                      !Number.isFinite(end_minute) ||
-                      start_minute < 0 ||
-                      end_minute > 1440 ||
-                      end_minute <= start_minute
-                    )
-                      throw Error("시간 구간을 확인해 주세요.");
+                  for (const [start_minute, end_minute] of parseWindows(
+                    value,
+                  )) {
                     changes.push({
                       table: "availability_rules",
                       action: "insert",
@@ -232,7 +230,7 @@ export function Settings({
                   <span>{d}</span>
                   <Input
                     name={`day${i + 1}`}
-                    placeholder="휴무 또는 09:00-12:00,13:00-18:00"
+                    placeholder="비우면 휴무 · 09:00-12:00, 13:00-18:00"
                     defaultValue={data.availability_rules
                       .filter((r) => r.weekday === i + 1)
                       .map(
@@ -254,11 +252,11 @@ export function Settings({
               홈 화면에 추가를 사용하세요.
             </p>
           </form>
-        )}
-        {tab === "카테고리" && (
+        </div>
+        <div className="settings-panel" hidden={tab !== "카테고리"}>
           <>
             <p className="small muted">
-              색상은 연결된 Todo와 작업 블록에 함께 적용됩니다.
+              색상은 연결된 할 일과 작업 블록에 함께 적용됩니다.
             </p>
             {data.categories.map((c) => (
               <form
@@ -414,8 +412,8 @@ export function Settings({
               <button>추가</button>
             </form>
           </>
-        )}
-        {tab === "반복" && (
+        </div>
+        <div className="settings-panel" hidden={tab !== "반복"}>
           <>
             <p className="small muted">
               반복은 조회 중인 주만 생성합니다. 공휴일 제외는 공식 데이터가
@@ -426,7 +424,7 @@ export function Settings({
                 <span>
                   <b>{String(r.template.title)}</b>
                   <small>
-                    {r.kind === "task" ? "Todo" : "고정 일정"} ·{" "}
+                    {r.kind === "task" ? "할 일" : "고정 일정"} ·{" "}
                     {r.weekdays
                       .map(
                         (d) =>
@@ -459,7 +457,7 @@ export function Settings({
             ))}
             {!data.recurrence_rules.length && (
               <p>
-                등록된 반복이 없습니다. Todo 또는 일정 편집에서 반복을
+                등록된 반복이 없습니다. 할 일 또는 일정 편집에서 반복을
                 설정하세요.
               </p>
             )}
@@ -472,8 +470,8 @@ export function Settings({
               />
             )}
           </>
-        )}
-        {tab === "알림" && (
+        </div>
+        <div className="settings-panel" hidden={tab !== "알림"}>
           <>
             <NotificationSetup
               data={data}
@@ -608,8 +606,23 @@ export function Settings({
               </p>
             )}
           </>
-        )}
-        {tab === "백업" && (
+        </div>
+        <div className="settings-panel" hidden={tab !== "연동"}>
+          <CalendarFeed preview={preview} />
+          {onOpenTemplates && (
+            <section className="help-section">
+              <h3>주 템플릿</h3>
+              <p className="small muted">
+                자주 쓰는 한 주의 일정과 목표를 저장해 두고 다른 주에 한 번에
+                적용해요.
+              </p>
+              <button type="button" onClick={onOpenTemplates}>
+                주 템플릿 열기
+              </button>
+            </section>
+          )}
+        </div>
+        <div className="settings-panel" hidden={tab !== "백업"}>
           <>
             <p className="small muted">
               인증 토큰과 Push 구독 키는 백업에 포함하지 않습니다. JSON 최대
@@ -633,8 +646,7 @@ export function Settings({
                   )
                 }
               >
-                <Download size={15} />
-                Todo CSV {csvBom ? "(UTF-8 BOM)" : ""}
+                <Download size={15} />할 일 CSV {csvBom ? "(UTF-8 BOM)" : ""}
               </button>
             </div>
             <label className="check-label">
@@ -677,18 +689,18 @@ export function Settings({
               <div className="import-preview">
                 <b>가져오기 미리보기</b>
                 <p>
-                  Todo {backup.data.tasks.length}개 · 블록{" "}
+                  할 일 {backup.data.tasks.length}개 · 블록{" "}
                   {backup.data.time_blocks.length}개 · 목표{" "}
                   {backup.data.goals.length}개
                 </p>
                 <p>
-                  동일 UUID Todo{" "}
+                  이미 있는 할 일{" "}
                   {
                     backup.data.tasks.filter((t) =>
                       data.tasks.some((x) => x.id === t.id),
                     ).length
                   }
-                  개 · 교체 시 현재 Todo {data.tasks.length}개를 지웁니다.
+                  개 · 교체 시 현재 할 일 {data.tasks.length}개를 지웁니다.
                 </p>
                 {(["merge", "replace"] as const).map((mode) => (
                   <button
@@ -699,7 +711,7 @@ export function Settings({
                       if (
                         !(await confirmAction(
                           mode === "replace"
-                            ? "현재 계정의 도메인 데이터를 모두 지우고 교체합니다. 계속할까요?"
+                            ? "현재 계정의 플래너 데이터를 모두 지우고 교체합니다. 계속할까요?"
                             : "같은 ID는 백업 내용으로 병합합니다. 계속할까요?",
                         ))
                       )
@@ -712,6 +724,12 @@ export function Settings({
                       )
                         return;
                       void run(async () => {
+                        // Queued offline edits would replay on top of the
+                        // restored data, so they must reach the server first.
+                        if (!preview && (await pending(data.profile.id)).length)
+                          throw Error(
+                            "아직 전송되지 않은 변경이 있어요. 연결 후 저장이 끝나면 다시 복원해 주세요.",
+                          );
                         await rpc("import_backup", {
                           p_backup: backup,
                           p_mode: mode,
@@ -719,7 +737,7 @@ export function Settings({
                         });
                         await onReload();
                         setBackup(null);
-                      }, "원자적 복원을 완료했습니다.");
+                      }, "한 번에 전부 복원을 완료했습니다.");
                     }}
                   >
                     {mode === "merge" ? "병합하여 복원" : "전체 교체하여 복원"}
@@ -728,15 +746,25 @@ export function Settings({
               </div>
             )}
           </>
-        )}
-        {tab === "계정" && (
+        </div>
+        <div className="settings-panel" hidden={tab !== "계정"}>
           <>
             <p>데이터는 현재 로그인한 사용자에게만 연결됩니다.</p>
             <p className="small muted">
               로그아웃하면 이 기기의 개인 캐시와 미전송 큐를 삭제합니다. 먼저
               동기화를 완료하거나 JSON 백업을 저장하세요.
             </p>
-            <button onClick={() => void run(onLogout, "로그아웃했습니다.")}>
+            <button
+              onClick={() =>
+                void run(
+                  async () => {
+                    if (!(await onLogout()))
+                      throw Error("로그아웃을 취소했어요.");
+                  },
+                  preview ? "체험을 종료했어요." : "로그아웃했어요.",
+                )
+              }
+            >
               <LogOut size={16} /> {preview ? "체험 종료" : "로그아웃"}
             </button>
             {!preview && (
@@ -767,7 +795,7 @@ export function Settings({
                         { body: { confirm: "DELETE" } },
                       );
                       if (error) throw error;
-                      await onLogout();
+                      await onLogout(false);
                     }, "계정을 삭제했습니다.");
                   }}
                 >
@@ -777,7 +805,7 @@ export function Settings({
               </>
             )}
           </>
-        )}
+        </div>
       </div>
       {message && (
         <p className="settings-message" role="status">

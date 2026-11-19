@@ -26,7 +26,7 @@ test("login, paper preview, inline Todo, multi-block editor, settings, screensho
     .getByRole("button", { name: "통합 테스트 작업", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "시간표에 배치", exact: true })
+    .getByRole("button", { name: "저장하고 배치", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "할 일을 시간표에 배치" }),

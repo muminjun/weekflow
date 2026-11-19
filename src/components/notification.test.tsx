@@ -26,7 +26,7 @@ it("enabling a registered device updates the notification switch without discard
         data={data}
         preview={false}
         onClose={() => {}}
-        onLogout={async () => {}}
+        onLogout={async () => true}
         onReload={async () => {}}
         commit={async (rows) => {
           changes.push(rows);

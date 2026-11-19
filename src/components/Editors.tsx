@@ -6,11 +6,14 @@ import { userMessage } from "../ui/errors";
 import { useState } from "react";
 import { formatInTimeZone } from "date-fns-tz";
 import { Modal } from "./Modal";
+import { FocusTimer } from "./FocusTimer";
+import { duplicateBlock } from "../domain/templates";
 import type { Block, Change, Dataset, Task, WeekTask } from "../domain/types";
 import { uuid } from "../data/demo";
 import {
   addDays,
   localMinute,
+  parseWindows,
   timeLabel,
   toUTC,
   today,
@@ -161,6 +164,10 @@ export function TaskEditor({
     e.preventDefault();
     setSaving(true);
     try {
+      const place =
+        (e.nativeEvent as SubmitEvent).submitter instanceof HTMLButtonElement &&
+        ((e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement)
+          .value === "place";
       const f = new FormData(e.currentTarget),
         id = task?.id ?? uuid(),
         wid = wt?.id ?? uuid();
@@ -263,6 +270,7 @@ export function TaskEditor({
       }
       await commit(changes);
       onClose();
+      if (place) onPlace(wid);
     } catch (e) {
       setError(userMessage(e));
     } finally {
@@ -319,7 +327,12 @@ export function TaskEditor({
     onClose();
   }
   return (
-    <Modal title={task ? "할 일 편집" : "새로운 할 일"} onClose={onClose} wide>
+    <Modal
+      title={task ? "할 일 편집" : "새로운 할 일"}
+      onClose={onClose}
+      wide
+      guardChanges
+    >
       <form onSubmit={(e) => void submit(e)}>
         <label>
           할 일
@@ -410,23 +423,23 @@ export function TaskEditor({
                       row: { id: task.id },
                       expected_version: task.version,
                     },
-                  ]).then(onClose);
+                  ]).then(onClose, (e) => setError(userMessage(e)));
               }}
             >
               삭제
             </button>
           )}
+          <button type="submit" name="intent" value="place" disabled={saving}>
+            저장하고 배치
+          </button>
           <button className="primary" disabled={saving}>
             {saving ? "처리 중" : "저장"}
           </button>
         </div>
         {wt && (
           <div className="secondary-actions">
-            <button type="button" onClick={() => onPlace(wt.id)}>
-              시간표에 배치
-            </button>
             <button type="button" onClick={() => void complete()}>
-              {wt.state === "done" ? "완료 해제" : "Todo 전체 완료"}
+              {wt.state === "done" ? "완료 해제" : "할 일 전체 완료"}
             </button>
           </div>
         )}
@@ -434,6 +447,9 @@ export function TaskEditor({
     </Modal>
   );
 }
+const coarsePointer = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(pointer: coarse)").matches === true;
 export function BlockEditor({
   data,
   block,
@@ -602,7 +618,7 @@ export function BlockEditor({
           window.setTimeout(
             () =>
               void alertAction(
-                "연결된 계획 블록을 모두 완료했습니다. 할 일 상세에서 Todo 전체 완료를 확정할 수 있습니다.",
+                "연결된 계획 블록을 모두 완료했습니다. 할 일 상세에서 전체 완료를 확정할 수 있습니다.",
               ),
             100,
           );
@@ -624,13 +640,15 @@ export function BlockEditor({
       }
       onClose={onClose}
       wide
+      guardChanges
     >
       <form onSubmit={(e) => void submit(e)}>
         <label>
           {kind === "task" ? "연결된 할 일" : "일정 이름"}
           <Input
             name="title"
-            autoFocus
+            // On touch screens the keyboard would cover the time just chosen.
+            autoFocus={!coarsePointer()}
             required={kind === "event"}
             maxLength={240}
             defaultValue={
@@ -703,7 +721,7 @@ export function BlockEditor({
             <RepeatFields date={date} />
           ))}
         <p className="muted small">
-          블록 완료와 Todo 전체 완료는 별도로 기록됩니다.
+          블록 완료와 할 일 전체 완료는 별도로 기록됩니다.
         </p>
         {error && (
           <p role="alert" className="error">
@@ -718,7 +736,7 @@ export function BlockEditor({
               onClick={async () => {
                 if (
                   await confirmAction(
-                    "이 블록을 삭제할까요? 연결된 Todo는 유지됩니다.",
+                    "이 블록을 삭제할까요? 연결된 할 일은 그대로 남아요.",
                   )
                 )
                   void commit([
@@ -728,10 +746,34 @@ export function BlockEditor({
                       row: { id: block.id },
                       expected_version: block.version,
                     },
-                  ]).then(onClose);
+                  ]).then(onClose, (e) => setError(userMessage(e)));
               }}
             >
               블록 삭제
+            </button>
+          )}
+          {block && (
+            <button
+              type="button"
+              onClick={() => {
+                // Next day, same local start: the common "again tomorrow".
+                const day = formatInTimeZone(
+                  block.start_at,
+                  zone,
+                  "yyyy-MM-dd",
+                );
+                void commit([
+                  duplicateBlock(
+                    block,
+                    addDays(day, 1),
+                    localMinute(block.start_at, zone),
+                    uuid,
+                    zone,
+                  ),
+                ]).then(onClose, (e) => setError(userMessage(e)));
+              }}
+            >
+              다음 날로 복제
             </button>
           )}
           <button className="primary" disabled={saving}>
@@ -739,6 +781,16 @@ export function BlockEditor({
           </button>
         </div>
       </form>
+      {block && (
+        // Outside the form: timer actions save on their own and must not mark
+        // the block form as having unsaved edits.
+        <FocusTimer
+          data={data}
+          block={block}
+          commit={commit}
+          onMarkedDone={onClose}
+        />
+      )}
     </Modal>
   );
 }
@@ -763,27 +815,9 @@ export function AvailabilityEditor({
           try {
             const f = new FormData(e.currentTarget),
               mode = val(f, "mode");
-            const windows = val(f, "windows")
-              .split(",")
-              .filter((s) => s.trim())
-              .map((s) => {
-                const [start, end] = s.trim().split("-");
-                const n = (t: string) =>
-                  t
-                    .split(":")
-                    .reduce((a, x, i) => a + Number(x) * (i === 0 ? 60 : 1), 0);
-                const startMinute = n(start),
-                  endMinute = n(end);
-                if (
-                  !Number.isFinite(startMinute) ||
-                  !Number.isFinite(endMinute) ||
-                  startMinute < 0 ||
-                  endMinute > 1440 ||
-                  startMinute >= endMinute
-                )
-                  throw Error("09:00-12:00,13:00-18:00 형식으로 입력하세요.");
-                return { startMinute, endMinute };
-              });
+            const windows = parseWindows(val(f, "windows")).map(
+              ([startMinute, endMinute]) => ({ startMinute, endMinute }),
+            );
             if (mode === "default") {
               if (old)
                 void commit([
@@ -793,7 +827,7 @@ export function AvailabilityEditor({
                     row: { id: old.id },
                     expected_version: old.version,
                   },
-                ]).then(onClose);
+                ]).then(onClose, (e) => setError(userMessage(e)));
               else onClose();
             } else
               void commit([
@@ -808,7 +842,7 @@ export function AvailabilityEditor({
                   },
                   expected_version: old?.version,
                 },
-              ]).then(onClose);
+              ]).then(onClose, (e) => setError(userMessage(e)));
           } catch (e) {
             setError(userMessage(e));
           }

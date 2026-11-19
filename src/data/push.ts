@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { FunctionsHttpError } from "@supabase/supabase-js";
+import { FunctionsHttpError } from "@supabase/functions-js";
 
 async function pushFailure(error: unknown): Promise<never> {
   let status = 0;

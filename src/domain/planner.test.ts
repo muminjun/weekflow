@@ -3,6 +3,7 @@ import {
   weekOf,
   addDays,
   union,
+  parseWindows,
   subtract,
   minutes,
   dayStatus,
@@ -97,4 +98,25 @@ it("keeps approved overlaps in separately interactive lanes", () => {
   expect(lanes.get("b")).toEqual({ lane: 1, count: 2 });
   expect(lanes.get("c")).toEqual({ lane: 0, count: 2 });
   expect(lanes.get("d")).toEqual({ lane: 0, count: 1 });
+});
+describe("parseWindows", () => {
+  it("reads common Korean and compact time-range spellings", () => {
+    expect(parseWindows("09:00-12:00, 13:00-18:00")).toEqual([
+      [540, 720],
+      [780, 1080],
+    ]);
+    expect(parseWindows("9-12")).toEqual([[540, 720]]);
+    expect(parseWindows("0930~1200")).toEqual([[570, 720]]);
+    expect(parseWindows("9시-12시 30분")).toEqual([[540, 750]]);
+    expect(parseWindows("13:00-24:00")).toEqual([[780, 1440]]);
+  });
+  it("treats empty and 휴무 as closed", () => {
+    expect(parseWindows("")).toEqual([]);
+    expect(parseWindows(" 휴무 ")).toEqual([]);
+  });
+  it("explains malformed or overlapping input instead of throwing a TypeError", () => {
+    expect(() => parseWindows("09:00")).toThrow(/09:00-12:00처럼/);
+    expect(() => parseWindows("12-9")).toThrow(/이해하지 못했어요/);
+    expect(() => parseWindows("9-12,11-13")).toThrow(/겹치는/);
+  });
 });

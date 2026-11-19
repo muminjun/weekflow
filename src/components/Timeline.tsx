@@ -12,6 +12,7 @@ import {
 import { formatInTimeZone } from "date-fns-tz";
 import type { Block, Change, Dataset } from "../domain/types";
 import {
+  dayLabel,
   localMinute,
   addDays,
   overlapLanes,
@@ -33,6 +34,8 @@ import {
   categoryText,
 } from "../domain/view";
 import { Modal } from "./Modal";
+import { duplicateBlock, placeTaskChanges } from "../domain/templates";
+import { uuid } from "../data/demo";
 import { IconButton, SegmentedControl } from "../ui/Controls";
 interface Props {
   data: Dataset;
@@ -63,6 +66,8 @@ interface Drag {
   end: number;
   moved: boolean;
   sliceOffset: number;
+  /** Alt held while moving: drop inserts a copy and leaves the original. */
+  copy?: boolean;
 }
 export function Timeline({
   data,
@@ -97,6 +102,8 @@ export function Timeline({
   );
   const dragRef = useRef<Drag | null>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const lastPointer = useRef("");
   const [hover, setHover] = useState<{ date: string; minute: number } | null>(
     null,
   );
@@ -179,12 +186,18 @@ export function Timeline({
     setRange([start, start + 540]);
     setMode("fit");
   }
-  async function savePlacement(d: Drag) {
-    const start_at = toUTC(d.date, d.start, zone),
-      end_at = toUTC(d.date, d.end, zone);
+  /** Overlap and focus-window confirmations shared by move, copy and drop. */
+  async function confirmPlacement(
+    date: string,
+    start: number,
+    end: number,
+    ignoreId?: string,
+  ) {
+    const start_at = toUTC(date, start, zone),
+      end_at = toUTC(date, end, zone);
     const overlaps = data.time_blocks.filter(
       (b) =>
-        b.id !== d.block.id &&
+        b.id !== ignoreId &&
         b.state !== "skipped" &&
         b.start_at < end_at &&
         b.end_at > start_at,
@@ -195,23 +208,63 @@ export function Timeline({
         `다음 일정과 겹칩니다:\n${overlaps.map((b) => `${titleOf(data, b)} · ${formatInTimeZone(b.start_at, zone, "MM.dd HH:mm")}–${formatInTimeZone(b.end_at, zone, "HH:mm")}`).join("\n")}\n겹쳐서 배치할까요?`,
       ))
     )
-      return;
-    const focus = availability(data, d.date, holidayNames.has(d.date)).focus;
+      return null;
+    const focus = availability(data, date, holidayNames.has(date)).focus;
     if (
-      !focus.some(([s, e]) => d.start >= s && d.end <= e) &&
+      !focus.some(([s, e]) => start >= s && end <= e) &&
       !(await confirmAction("집중 가능 시간 밖입니다. 그래도 배치할까요?"))
     )
-      return;
+      return null;
+    return { start_at, end_at, overlapping: !!overlaps.length };
+  }
+  async function savePlacement(d: Drag) {
+    const copy = d.copy && d.mode === "move";
+    // A copy sits beside its original, so the original counts as an overlap.
+    const ok = await confirmPlacement(
+      d.date,
+      d.start,
+      d.end,
+      copy ? undefined : d.block.id,
+    );
+    if (!ok) return false;
     await commit(
       [
-        {
-          table: "time_blocks",
-          action: "update",
-          row: { id: d.block.id, start_at, end_at, local_date: d.date },
-          expected_version: d.block.version,
-        },
+        copy
+          ? duplicateBlock(d.block, d.date, d.start, uuid, zone)
+          : {
+              table: "time_blocks",
+              action: "update",
+              row: {
+                id: d.block.id,
+                start_at: ok.start_at,
+                end_at: ok.end_at,
+                local_date: d.date,
+              },
+              expected_version: d.block.version,
+            },
       ],
-      !!overlaps.length,
+      ok.overlapping,
+    );
+    if (copy)
+      setAnnouncement(
+        `${titleOf(data, d.block)} 복사: ${dayLabel(d.date)} ${timeLabel(d.start)}–${timeLabel(d.end % 1440)}`,
+      );
+    return true;
+  }
+  /** A DEADLINE row dropped on the grid: link it to this week and place it. */
+  async function dropDeadline(taskId: string, date: string, minute: number) {
+    const week = days[0];
+    const existing = data.week_tasks.find(
+      (w) => w.task_id === taskId && w.week_start === week,
+    );
+    if (existing) return onCreate(date, minute, existing.id);
+    if (!data.tasks.some((t) => t.id === taskId)) return;
+    const placed = placeTaskChanges(data, taskId, week, date, minute, uuid);
+    const ok = await confirmPlacement(date, placed.start, placed.end);
+    if (!ok) return;
+    await commit(placed.changes, ok.overlapping);
+    setAnnouncement(
+      `${data.tasks.find((t) => t.id === taskId)?.title ?? "마감"}: ${dayLabel(date)} ${timeLabel(placed.start)}–${timeLabel(placed.end % 1440)}에 배치했어요.`,
     );
   }
   function move(e: React.PointerEvent) {
@@ -240,6 +293,7 @@ export function Timeline({
     if (!rect && d.mode === "move") date = d.date;
     const next = {
       ...d,
+      copy: d.mode === "move" && e.altKey,
       date,
       start,
       end,
@@ -265,6 +319,7 @@ export function Timeline({
       start,
       end: start + (Date.parse(b.end_at) - Date.parse(b.start_at)) / 60000,
       moved: false,
+      copy: mode === "move" && e.altKey,
       sliceOffset: Math.round(
         (Date.parse(
           (e.currentTarget.closest<HTMLElement>("[data-day]")?.dataset.day ??
@@ -289,10 +344,60 @@ export function Timeline({
     if (d.moved) void savePlacement(d);
     else if (d.mode === "move") onEdit(d.block);
   }
+  // Keyboard equivalent of dragging: Alt+↑/↓ moves 15 minutes, Alt+←/→ moves
+  // a day, Alt+Shift+↑/↓ changes the end time. Saving reuses drag's checks.
+  async function nudge(e: React.KeyboardEvent, b: Block) {
+    if (!e.altKey || !e.key.startsWith("Arrow")) return;
+    e.preventDefault();
+    const date = formatInTimeZone(b.start_at, zone, "yyyy-MM-dd");
+    let start = localMinute(b.start_at, zone);
+    let finish =
+      start + (Date.parse(b.end_at) - Date.parse(b.start_at)) / 60000;
+    let day = date;
+    const step = e.key === "ArrowUp" ? -15 : e.key === "ArrowDown" ? 15 : 0;
+    if (e.shiftKey && step) finish = Math.max(start + 15, finish + step);
+    else if (step) {
+      const length = finish - start;
+      start = Math.max(0, Math.min(1440 - length, start + step));
+      finish = start + length;
+    } else day = addDays(date, e.key === "ArrowLeft" ? -1 : 1);
+    if (
+      start === localMinute(b.start_at, zone) &&
+      day === date &&
+      finish === start + (Date.parse(b.end_at) - Date.parse(b.start_at)) / 60000
+    )
+      return;
+    const id = b.id;
+    const saved = await savePlacement({
+      block: b,
+      mode: "move",
+      x: 0,
+      y: 0,
+      date: day,
+      start,
+      end: finish,
+      moved: true,
+      sliceOffset: 0,
+    });
+    if (!saved) return;
+    setAnnouncement(
+      `${titleOf(data, b)}: ${dayLabel(day)} ${timeLabel(start)}–${timeLabel(finish % 1440)}`,
+    );
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(
+          `[data-day="${day}"] [data-block-id="${id}"] .block-content`,
+        )
+        ?.focus(),
+    );
+  }
   return (
     <div
       className={`calendar ${mode !== "fit" ? "calendar-detail" : ""} ${dayView === "day" ? "single-day" : ""}`}
     >
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
       <div className="calendar-toolbar">
         <div className="range-navigation">
           <IconButton
@@ -483,7 +588,11 @@ export function Timeline({
                     setHover(null);
                     return;
                   }
-                  setHover({ date, minute });
+                  setHover((current) =>
+                    current?.date === date && current.minute === minute
+                      ? current
+                      : { date, minute },
+                  );
                 }}
                 onPointerLeave={() => setHover(null)}
                 onPointerDown={(e) => {
@@ -571,22 +680,22 @@ export function Timeline({
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
+                  const minute = Math.min(
+                    to - 60,
+                    snap(
+                      from +
+                        ((e.clientY -
+                          e.currentTarget.getBoundingClientRect().top) *
+                          60) /
+                          scale,
+                    ),
+                  );
                   const wt = e.dataTransfer.getData("text/weekflow-task");
-                  if (wt)
-                    onCreate(
-                      date,
-                      Math.min(
-                        to - 60,
-                        snap(
-                          from +
-                            ((e.clientY -
-                              e.currentTarget.getBoundingClientRect().top) *
-                              60) /
-                              scale,
-                        ),
-                      ),
-                      wt,
-                    );
+                  if (wt) return onCreate(date, minute, wt);
+                  const deadline = e.dataTransfer.getData(
+                    "text/weekflow-deadline",
+                  );
+                  if (deadline) void dropDeadline(deadline, date, minute);
                 }}
               >
                 <button
@@ -652,7 +761,8 @@ export function Timeline({
                   return (
                     <div
                       key={b.id}
-                      className={`time-block ${geometry.height < 20 ? "compact-block" : geometry.height < 54 ? "short-block" : ""} ${b.kind} ${b.state === "done" ? "block-done" : ""} ${collision ? "has-overlap" : ""} ${drag?.block.id === b.id && drag.moved ? "drag-source" : ""}`}
+                      data-block-id={b.id}
+                      className={`time-block ${geometry.height < 20 ? "compact-block" : geometry.height < 54 ? "short-block" : ""} ${b.kind} ${b.state === "done" ? "block-done" : ""} ${collision ? "has-overlap" : ""} ${drag?.block.id === b.id && drag.moved ? (drag.copy ? "copy-source" : "drag-source") : ""}`}
                       style={{
                         ...geometry,
                         backgroundColor: colorOf(data, b),
@@ -667,11 +777,15 @@ export function Timeline({
                             ? `calc(${100 / lane.count}% - 8px)`
                             : undefined,
                       }}
-                      onPointerDown={(ev) => begin(ev, b, "move")}
-                      onClick={(ev) => {
+                      onPointerDown={(ev) => {
+                        // Some tablet browsers fire plain MouseEvent clicks,
+                        // so the pointer type is taken from the press.
+                        lastPointer.current = ev.pointerType;
+                        begin(ev, b, "move");
+                      }}
+                      onClick={() => {
                         if (
-                          (ev as unknown as { pointerType?: string })
-                            .pointerType === "touch" ||
+                          lastPointer.current === "touch" ||
                           window.matchMedia("(max-width:767px)").matches
                         )
                           onEdit(b);
@@ -682,9 +796,11 @@ export function Timeline({
                         onClick={(ev) => {
                           if (ev.detail === 0) onEdit(b);
                         }}
+                        onKeyDown={(ev) => void nudge(ev, b)}
+                        aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Alt+ArrowLeft Alt+ArrowRight Alt+Shift+ArrowUp Alt+Shift+ArrowDown"
                         data-tooltip={`${titleOf(data, b)} · ${timeLabel(s)}–${timeLabel(e)}${collision ? " · 일정 겹침" : ""}`}
                         aria-labelledby={`${geometry.height >= 54 ? `time-${date}-${b.id} ` : ""}title-${date}-${b.id}${collision ? ` overlap-${date}-${b.id}` : ""}`}
-                        aria-description={`${timeLabel(s)} ${b.state === "done" ? "✓ " : ""}${titleOf(data, b)} · ${timeLabel(s)}–${timeLabel(e)} ${b.state === "done" ? "완료" : ""} ${collision ? "일정 겹침" : ""}`}
+                        aria-description={`${dayLabel(date)} ${timeLabel(s)}–${timeLabel(e)}${b.state === "done" ? " 완료" : ""}${collision ? " 일정 겹침" : ""}. Alt와 화살표로 이동, Alt+Shift로 길이 조절`}
                       >
                         <span className="compact-marker" aria-hidden="true">
                           {b.state === "done" ? "✓" : "•"}
@@ -743,7 +859,11 @@ export function Timeline({
                       clippedGeometry(slice[0], slice[1], from, to, scale);
                     return (
                       geometry && (
-                        <div className="drag-preview" style={geometry}>
+                        <div
+                          className={`drag-preview ${drag.copy ? "drag-copy" : ""}`}
+                          style={geometry}
+                        >
+                          {drag.copy && <b className="copy-label">복사</b>}
                           {timeLabel(drag.start)}–{timeLabel(drag.end)}
                         </div>
                       )
@@ -764,11 +884,13 @@ export function Timeline({
         <span>
           <i className="hint-dash" /> 집중 가능 시간
         </span>
-        <span>15분 단위 · 빈 시간에 마우스를 올리고 클릭해 추가</span>
+        <span>
+          15분 단위 · 빈 시간에 마우스를 올리고 클릭해 추가 · Alt+끌기로 복사
+        </span>
       </div>
       {(outsideOpen || listOpen) && (
         <Modal
-          title={listOpen ? "이번 주 일정 목록" : "표시 범위 밖 일정"}
+          title={listOpen ? "일정 목록" : "표시 범위 밖 일정"}
           onClose={() => {
             setOutsideOpen(false);
             setListOpen(false);

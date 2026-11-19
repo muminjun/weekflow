@@ -36,9 +36,9 @@ it("Enter rejects blank titles and creates one source Todo, one weekly relation 
   ).toBeVisible();
   expect(latest.tasks).toHaveLength(1);
   expect(latest.week_tasks).toHaveLength(1);
-  expect(
-    screen.getAllByRole("button", { name: /눌러 직접 기록 변경/ }),
-  ).toHaveLength(7);
+  expect(screen.getAllByRole("button", { name: /누르면 .*기록/ })).toHaveLength(
+    7,
+  );
 });
 it("manual day marks do not invent performed time blocks", async () => {
   const d = emptyData(uuid());
@@ -84,13 +84,19 @@ it("manual day marks do not invent performed time blocks", async () => {
   render(<Harness />);
   const user = userEvent.setup();
   await user.click(
-    screen.getByRole("button", { name: /2026-11-09 기록 없음/ }),
+    screen.getByRole("button", { name: /11월 9일\(월\): 기록 없음/ }),
   );
-  await user.click(screen.getByRole("button", { name: /2026-11-09 계획/ }));
-  expect(screen.getByRole("button", { name: /2026-11-09 완료/ })).toBeVisible();
+  await user.click(
+    screen.getByRole("button", { name: /11월 9일\(월\): 계획/ }),
+  );
+  expect(
+    screen.getByRole("button", { name: /11월 9일\(월\): 완료/ }),
+  ).toBeVisible();
   expect(latest.tasks[0].state).toBe("open");
   expect(latest.time_blocks).toHaveLength(0);
-  await user.click(screen.getByRole("button", { name: /2026-11-09 완료/ }));
+  await user.click(
+    screen.getByRole("button", { name: /11월 9일\(월\): 완료/ }),
+  );
   expect(latest.week_task_day_marks).toHaveLength(0);
 });
 it("Escape closes a dialog and restores the opening control focus", async () => {

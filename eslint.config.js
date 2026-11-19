@@ -4,6 +4,7 @@ import hooks from "eslint-plugin-react-hooks";
 export default ts.config(
   {
     ignores: [
+      ".claude/**",
       "dist/**",
       "test-results/**",
       "playwright-report/**",

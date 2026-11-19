@@ -129,6 +129,29 @@ export interface AppNotification extends Base {
   target_ref: string | null;
   read_at: string | null;
 }
+/** A focus timer run tied to a block; minutes are measured, not planned. */
+export interface BlockSession extends Base {
+  block_id: string;
+  started_at: string;
+  ended_at: string | null;
+  note: string;
+}
+export interface TemplateBlock {
+  /** 1 = 월 … 7 = 일 */
+  weekday: number;
+  start_minute: number;
+  duration: number;
+  kind: "event" | "task";
+  title: string;
+  category_id: string | null;
+  note: string;
+}
+/** A reusable week shape ("평상 주", "시험 주") applied on demand. */
+export interface WeekTemplate extends Base {
+  name: string;
+  blocks: TemplateBlock[];
+  goals: string[];
+}
 export interface Dataset {
   profile: Profile;
   categories: Category[];
@@ -143,6 +166,9 @@ export interface Dataset {
   recurrence_rules: Rule[];
   recurrence_occurrences: Occurrence[];
   week_reviews: Review[];
+  /** Empty until migration 015 is applied on the server. */
+  block_sessions: BlockSession[];
+  week_templates: WeekTemplate[];
   notification_preferences: Preferences;
   in_app_notifications: AppNotification[];
 }
