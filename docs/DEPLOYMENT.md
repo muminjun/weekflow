@@ -66,7 +66,7 @@ Settings → Pages → Source: GitHub Actions. 공개 저장소에 main을 push�
 
 기존 공공데이터포털 승인 계정의 KASI 키를 GitHub Actions Secret에 직접 등록했습니다. 키를 재발급하거나 소스에 저장하지 않았습니다. 2025·2026·2027년 각 12개월을 실제 API에서 조회해 전체 검증 캐시를 생성했습니다. Supabase Auth의 Google enabled=true, email/anonymous=false와 Google Cloud의 프로덕션 단계를 직접 확인했습니다.
 
-GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로고침 유지, Mac Chrome Push 수신을 확인했습니다. 배포 환경의 브랜치 정책은 main입니다. DB 마이그레이션 001~013이 적용되어 있습니다. **014_reliability_fixes.sql과 015_focus_templates_feed_errors.sql은 아직 적용 전**입니다(알림 재예약, 상태만 바꾸는 블록 수정의 겹침 오류, 시간대 검증, 백업 복원 순서, Push 공유 기기 정리, 보존 기간 정리, `dataset_version()`). 적용 후 `supabase/cron.sql`의 `weekflow-retention` 작업을 등록하고 기존 세 Edge Function을 다시 배포한 뒤 `calendar-feed`를 `--no-verify-jwt`로 새로 배포하세요. 클라이언트는 `dataset_version()`이 없으면 5분 간격 전체 새로고침으로 자동 대체합니다. 모바일 기기와 알림 클릭 검증은 테스트 보고서의 남은 항목을 따릅니다.
+GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로고침 유지, Mac Chrome Push 수신을 확인했습니다. 배포 환경의 브랜치 정책은 main입니다. DB 마이그레이션 001~015가 적용되어 있습니다(014·015는 2026-11-19 Management API로 적용, 새 테이블 5개 RLS 확인). Edge Function 4개(push-subscription·delete-account는 JWT 검증, dispatch-push·calendar-feed는 verify_jwt=false)를 배포했고, Cron `weekflow-notifications`(5분)와 `weekflow-retention`(매일 03:17 UTC)이 활성 상태입니다. 배포 후 dispatch-push 예약 실행이 200을 반환하는 것을 확인했습니다. 모바일 기기와 알림 클릭 검증은 테스트 보고서의 남은 항목을 따릅니다.
 
 ## UI 외관 및 업데이트 검수
 
