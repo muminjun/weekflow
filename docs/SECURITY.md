@@ -1,6 +1,6 @@
 # 보안 모델
 
-개인 테이블 19개에 RLS가 활성화돼 있는 것을 실서버에서 조회했습니다(마이그레이션 001~013 기준). 014·015가 추가하는 dataset_versions, block_sessions, week_templates, calendar_feeds, client_errors도 모두 RLS를 켜며, 적용 후 실서버에서 다시 조회해 기록하세요. 사용자 소유자는 JWT auth.uid()로 결정하며 클라이언트의 user_id를 신뢰하지 않습니다. 브라우저는 SELECT와 허용 RPC만 사용합니다. 직접 INSERT/UPDATE/DELETE는 차단하고 expected_version과 멱등 UUID를 가진 원자적 RPC를 사용합니다.
+개인 테이블 19개에 RLS가 활성화돼 있는 것을 실서버에서 조회했습니다(001~013 기준). 2026-11-19 014·015 적용 후 dataset_versions, block_sessions, week_templates, calendar_feeds, client_errors 5개도 실서버에서 RLS 활성 상태임을 조회했습니다. 사용자 소유자는 JWT auth.uid()로 결정하며 클라이언트의 user_id를 신뢰하지 않습니다. 브라우저는 SELECT와 허용 RPC만 사용합니다. 직접 INSERT/UPDATE/DELETE는 차단하고 expected_version과 멱등 UUID를 가진 원자적 RPC를 사용합니다.
 
 복합 FK는 타인의 Task/Category/Goal/WeekTask 연결을 막습니다. 서버 트리거는 같은 주 연결, 요일 기록 범위, start_at에서 계산한 날짜, 15분 스냅, timezone, 가용 구간을 검증합니다. SECURITY DEFINER 함수는 고정 search_path와 내부 사용자 검사를 사용하고 PUBLIC/anon 실행을 철회합니다. 예약 큐/claim은 service_role 전용입니다.
 

@@ -74,9 +74,9 @@ GitHub Pages 실배포, 실제 Google 로그인과 클라우드 저장·새로�
 
 배포 검수는 `node scripts/verify-ui.mjs https://muminjun.github.io/weekflow/ live-redesign`로 반복할 수 있다. 새 격리 브라우저에서 메모리 체험만 사용해 PC/모바일 UI, 실제 폰트, 스크롤, SW 제어, 오프라인 재실행과 외관 유지를 검사하며 실제 계정에 쓰지 않는다. 실제 계정 검수는 별도 새 창에서 미전송 변경과 열린 폼을 먼저 확인하고 기존 ‘새 버전 열기’를 사용한다. 이번 UI 커밋의 실제 배포와 기존 로그인 세션의 업데이트 결과는 TEST_REPORT에 기록했다.
 
-## 015 집중 기록·주 템플릿·캘린더 구독·오류 보고 (미적용)
+## 015 집중 기록·주 템플릿·캘린더 구독·오류 보고
 
-`supabase/migrations/015_focus_templates_feed_errors.sql`은 014 다음에 적용합니다. 014가 먼저 적용되어 있어야 합니다(`apply_changes`, `import_backup`, `read_dataset`, `purge_expired_records`를 014 정의 위에 다시 정의하고 `touch_dataset_version()`을 재사용합니다). 실DB에는 아직 적용하지 않았습니다.
+`supabase/migrations/015_focus_templates_feed_errors.sql`은 014 다음에 적용합니다. 014가 먼저 적용되어 있어야 합니다(`apply_changes`, `import_backup`, `read_dataset`, `purge_expired_records`를 014 정의 위에 다시 정의하고 `touch_dataset_version()`을 재사용합니다). 2026-11-19 실DB에 적용했습니다.
 
 | 추가 | 내용 |
 |---|---|
