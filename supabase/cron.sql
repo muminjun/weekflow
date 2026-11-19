@@ -14,3 +14,7 @@ select cron.schedule('weekflow-notifications', '*/5 * * * *', $job$
     timeout_milliseconds := 120000
   );
 $job$);
+-- Daily retention: read in-app notifications after 90 days, mutation receipts and client error reports after 30 (015).
+select cron.schedule('weekflow-retention', '17 3 * * *', $job$
+  select public.purge_expired_records();
+$job$);

@@ -31,8 +31,11 @@ Deno.serve(async (req) => {
       if (countError) throw countError;
       if ((count ?? 0) >= 10) {
         const { data: existing, error: existingError } = await client
-          .from("push_subscriptions").select("id")
-          .eq("user_id", user.id).eq("endpoint", s.endpoint).maybeSingle();
+          .from("push_subscriptions")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("endpoint", s.endpoint)
+          .maybeSingle();
         if (existingError) throw existingError;
         if (!existing) return response(req, { error: "DEVICE_LIMIT" }, 429);
       }
@@ -47,6 +50,14 @@ Deno.serve(async (req) => {
         { onConflict: "user_id,endpoint" },
       );
       if (error) throw error;
+      // A shared device now belongs to this account only (the claim_endpoint trigger
+      // enforces the same rule in the database; this keeps intent explicit).
+      const { error: handoverError } = await client
+        .from("push_subscriptions")
+        .delete()
+        .eq("endpoint", s.endpoint)
+        .neq("user_id", user.id);
+      if (handoverError) throw handoverError;
       return response(req, { ok: true });
     }
     if (body.action === "unsubscribe") {
@@ -75,19 +86,13 @@ Deno.serve(async (req) => {
       if (error) throw error;
       if (!subscriptions?.length)
         return response(req, { error: "NO_SUBSCRIPTION" }, 400);
-      const { data: recent } = await client
-        .from("in_app_notifications")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("kind", "push_test")
-        .gte("created_at", new Date(Date.now() - 60000).toISOString());
-      if (recent?.length) return response(req, { error: "RATE_LIMIT" }, 429);
-      await client.from("in_app_notifications").insert({
-        user_id: user.id,
-        kind: "push_test",
-        title: "Push 테스트를 요청했습니다",
-        body: "기기 알림 수신을 직접 확인하세요.",
-      });
+      // Check-and-record runs under the per-user lock, so parallel requests send once.
+      const { data: allowed, error: limitError } = await client.rpc(
+        "request_push_test",
+        { p_user: user.id },
+      );
+      if (limitError) throw limitError;
+      if (!allowed) return response(req, { error: "RATE_LIMIT" }, 429);
       let sent = 0;
       for (const s of subscriptions) {
         try {

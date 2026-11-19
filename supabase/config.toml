@@ -386,3 +386,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # Cron authenticates with a random server-only header; it has no user JWT.
 [functions.dispatch-push]
 verify_jwt = false
+
+# Calendar apps cannot send a JWT; the feed authenticates with a hashed URL token.
+[functions.calendar-feed]
+verify_jwt = false

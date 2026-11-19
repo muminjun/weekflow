@@ -24,6 +24,8 @@ beforeAll(async () => {
     "011_server_recurrence.sql",
     "012_recurrence_template_validation.sql",
     "013_profile_reinitialization.sql",
+    "014_reliability_fixes.sql",
+    "015_focus_templates_feed_errors.sql",
   ])
     await db.exec(
       readFileSync(`supabase/migrations/${f}`, "utf8").replace(
